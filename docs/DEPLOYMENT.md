@@ -1,16 +1,18 @@
 # Run Relayix with Docker Compose
 
-Requirements: Docker Engine with Docker Compose v2.20 or newer. No source checkout, Python, Rust or Node.js is needed on the server. The published image includes the application and web UI.
+Requirements: Git and Docker Engine with Docker Compose v2.20 or newer. Compose runs the published image; Python, Rust and Node.js are included where needed in the image. Run all commands below from the repository root.
 
 ## Bundled PostgreSQL
 
-Download two files into an empty directory:
+Clone the repository and copy the settings template for a new installation:
 
 ```bash
-mkdir relayix && cd relayix
-curl -fL https://github.com/devops-nechaev/Relayix/releases/download/v0.6.3/compose.yaml -o compose.yaml
-curl -fL https://github.com/devops-nechaev/Relayix/releases/download/v0.6.3/relayix.env.example -o .env
+git clone https://github.com/devops-nechaev/Relayix.git
+cd Relayix
+cp relayix.env.example .env
 ```
+
+`compose.yaml` and `relayix.env.example` are already in the repository root. If you have an existing checkout, start there and keep an existing `.env` rather than overwriting it.
 
 Open `.env` in your preferred editor. Set these two values:
 
@@ -36,7 +38,7 @@ The containers are named `relayix-app` and `relayix-db` and share `relayix-netwo
 
 Create the database and login role on your PostgreSQL server first. The role must be able to create and alter objects in that database.
 
-Use the **same `compose.yaml` and `.env` downloaded above**. Set `DATABASE_MODE=external` in `.env`; no additional Compose files are needed.
+Use the **same root `compose.yaml` and `.env` prepared above**. Set `DATABASE_MODE=external` in `.env`; no additional Compose files are needed.
 
 In `.env`, set `ADMIN_PASSWORD` and your existing database connection settings:
 
@@ -97,11 +99,11 @@ All settings go in `.env`; no JSON generator is needed.
 
 `ADMIN_PASSWORD` bootstraps a new account. Change an existing account's password in the UI. Changing `POSTGRES_PASSWORD` in `.env` does not change the password in an initialized PostgreSQL database.
 
-The `.env` file contains credentials. Keep it on the deployment host and outside source control. The repository ignores `.env` files; the downloadable template contains no credentials.
+The `.env` file contains credentials. Keep it on the deployment host and outside source control. The repository ignores `.env` files; the committed template contains no credentials.
 
 ## Existing installations using the previous standalone files
 
-Replace your downloaded `compose.yaml` with the current release download and keep your existing `.env`, passwords and project directory. Add these lines to `.env`:
+Use the root `compose.yaml` and keep your existing `.env`, passwords and Compose project name. Add these lines to `.env`:
 
 ```dotenv
 DATABASE_MODE=local
@@ -130,4 +132,4 @@ docker compose logs -f app
 
 After editing `.env`, run `docker compose up -d` to apply changes. To stop containers, use `docker compose stop`; `docker compose up -d` starts them again. Do not use `docker compose down -v` when retaining database data.
 
-Existing private-JSON installations and GitHub-hosted deployment settings are documented in [the advanced deployment guide](DEPLOYMENT_ADVANCED.md) and [GitHub delivery](GITHUB.md). They continue to use their existing configuration and volume; downloading a new Compose file does not migrate data between installations.
+Existing private-JSON installations and GitHub-hosted deployment settings are documented in [the advanced deployment guide](DEPLOYMENT_ADVANCED.md) and [GitHub delivery](GITHUB.md). They continue to use their existing configuration and volume; changing the Compose configuration does not migrate data between installations.

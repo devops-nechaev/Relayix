@@ -4,15 +4,17 @@ A self-hosted notification hub: Rust / Axum / React / PostgreSQL. English interf
 
 ## Docker Compose quick start
 
-You only need **Docker with Compose v2.20+**. There is one `compose.yaml` in the repository root for local, external and TLS PostgreSQL. It defines only `relayix-app` and optional `relayix-db`, connected to the shared `relayix-network`. Download it and the settings template:
+You need **Git and Docker with Compose v2.20+**. The repository root contains `compose.yaml` and `relayix.env.example`. Compose runs the published image with `relayix-app` and optional `relayix-db` on the shared `relayix-network`.
+
+For a new installation:
 
 ```bash
-mkdir relayix && cd relayix
-curl -fL https://github.com/devops-nechaev/Relayix/releases/download/v0.6.3/compose.yaml -o compose.yaml
-curl -fL https://github.com/devops-nechaev/Relayix/releases/download/v0.6.3/relayix.env.example -o .env
+git clone https://github.com/devops-nechaev/Relayix.git
+cd Relayix
+cp relayix.env.example .env
 ```
 
-If you already cloned this repository, run `cp relayix.env.example .env` in its root instead of downloading the files.
+If the repository is already cloned, run `cp relayix.env.example .env` from its root. Keep an existing `.env` when updating an installation.
 
 Open `.env` and set **`POSTGRES_PASSWORD`** and **`ADMIN_PASSWORD`** to your own passwords. Keep the single quotes around passwords. The administrator password needs 12–128 characters, uppercase/lowercase letters, a number and a symbol.
 
