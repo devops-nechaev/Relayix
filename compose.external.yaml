@@ -1,0 +1,10 @@
+# External PostgreSQL: no bundled database service or persistent database volume.
+services:
+  app:
+    extends:
+      file: compose.app.yaml
+      service: app
+  db-tools:
+    extends:
+      file: compose.app.yaml
+      service: db-tools

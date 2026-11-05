@@ -20,7 +20,7 @@ chmod 700 "$backup_root"
 stamp="$(date -u +%Y%m%d-%H%M%S)-$$"
 backup_env="$backup_root/config-before-deploy-$stamp.json"
 cp "$RELAYIX_CONFIG_FILE" "$backup_env"
-"${compose[@]}" exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' > "$backup_root/db-before-deploy-$stamp.dump"
+"${compose[@]}" run --rm --no-deps -T db-tools pg_dump -Fc > "$backup_root/db-before-deploy-$stamp.dump"
 # Pull before changing the running service or its persistent configuration.
 RELAYIX_IMAGE_OVERRIDE="$RELAYIX_DEPLOY_IMAGE" "${compose[@]}" pull app
 export RELAYIX_DEPLOY_BACKUP_ENV="$backup_env"
@@ -44,6 +44,10 @@ if candidate:
     incoming=json.loads(Path(candidate).read_text())
     if incoming.get('POSTGRES_PASSWORD')!=config.get('POSTGRES_PASSWORD'):
         raise SystemExit('GitHub database secret differs from the active database password; refusing deployment')
+    from scripts.deployment import database_settings
+    current_db=database_settings(config);candidate_db=database_settings(incoming)
+    if any(current_db[key]!=candidate_db[key] for key in ['mode','host','port','user','database']):
+        raise SystemExit('Database destination differs from the active deployment; transfer data before switching databases')
     config=incoming
 config['RELAYIX_IMAGE']=os.environ['RELAYIX_DEPLOY_IMAGE']
 config['COMPOSE_PROJECT_NAME']=os.environ['COMPOSE_PROJECT_NAME']

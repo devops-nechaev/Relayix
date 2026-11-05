@@ -9,6 +9,7 @@ export RELAYIX_TEST_BROWSER_IMAGE="${RELAYIX_TEST_BROWSER_IMAGE:-relayix-browser
 export RELAYIX_TEST_ARTIFACTS="${RELAYIX_TEST_ARTIFACTS:-/tmp/relayix-test-artifacts}"
 mkdir -p "$RELAYIX_TEST_ARTIFACTS"
 python3 tests/runtime_security.py
+python3 tests/compose_modes.py
 export RELAYIX_TEST_RUNTIME_DIR
 RELAYIX_TEST_RUNTIME_DIR=$(mktemp -d /tmp/relayix-check-XXXXXXXX)
 python3 tests/generate_runtime.py "$RELAYIX_TEST_RUNTIME_DIR"
@@ -23,6 +24,7 @@ cleanup() {
 }
 trap cleanup EXIT
 if [[ "${1:-}" != '--skip-app-build' ]]; then docker build -t "$RELAYIX_TEST_IMAGE" .; fi
+python3 tests/compose_databases.py
 docker run --rm -v "$PWD/tests:/tests:ro" --entrypoint python3 "$RELAYIX_TEST_IMAGE" /tests/telegram_transport.py
 docker run --rm -v "$PWD/tests:/tests:ro" --entrypoint python3 "$RELAYIX_TEST_IMAGE" /tests/faketls.py
 docker build -f tests/checks.Dockerfile -t "$RELAYIX_TEST_CHECKS_IMAGE" tests

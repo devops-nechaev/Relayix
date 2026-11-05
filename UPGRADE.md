@@ -12,7 +12,7 @@ Back up with the wrapper, which supplies the private settings without printing t
 mkdir -p ../private/relayix-backups
 chmod 700 ../private/relayix-backups
 umask 077
-scripts/compose.sh exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' > "../private/relayix-backups/before-v061-$(date +%Y%m%d-%H%M%S).dump"
+scripts/compose.sh run --rm --no-deps -T db-tools pg_dump -Fc > "../private/relayix-backups/before-v061-$(date +%Y%m%d-%H%M%S).dump"
 ```
 
 Set the external JSON's `RELAYIX_IMAGE` to `relayix:0.6.1` (or the matching published GHCR reference), then replace only the app:
@@ -45,3 +45,7 @@ The updated application uses Python 3.15.2 on Trixie, built with Rust 1.99.1 and
 Before moving an existing cluster from another base distribution, take a final logical backup while the source app is stopped. Restore into an empty Trixie-initialized database, compare table contents and confirm that existing password hashes authenticate with the updated application. This rebuilds indexes using the target distribution's collation implementation. Keep the source volume and image for rollback rather than attaching the existing cluster to a different libc/locale implementation without checking collation versions.
 
 Persist the transferred volume name in `RELAYIX_DB_VOLUME` and the selected database image in `POSTGRES_IMAGE` in the private JSON. A database rollback must restore the matching image, volume and application configuration together; preserve any writes accepted after cutover.
+
+## Bundled or external PostgreSQL
+
+See [the deployment guide](docs/DEPLOYMENT.md) for `DATABASE_MODE=local` / `external`. Existing configurations without `DATABASE_MODE` keep their local database. Use the same existing password and `RELAYIX_DB_VOLUME`; the wrapper never transfers data automatically when the mode changes. The `db-tools` client supports backup and SQL checks in both modes.

@@ -2,6 +2,8 @@
 
 ## Unreleased — 2026-11-05
 
+- Document Compose startup with bundled, remote and host PostgreSQL using one private JSON file; select local/external Compose automatically and support shared database clients and custom CA certificates.
+
 - Move application, builders and test containers to Debian Trixie with stable package updates; use Rust 1.99.1, Node.js 26.13.0 LTS, Python 3.15.2 and PostgreSQL 17.11.
 - Refresh stable Rust, npm and Python dependencies and license inventories; adapt Argon2, rand, SQLx and Reqwest APIs and refresh Playwright.
 - Allow explicit PostgreSQL image/data-volume selection for verified transfers between base distributions.

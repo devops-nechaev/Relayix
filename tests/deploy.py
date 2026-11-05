@@ -15,7 +15,7 @@ with tempfile.TemporaryDirectory(prefix='relayix-deploy-test-') as directory:
     root=workspace/'repo';root.mkdir()
     (root / 'scripts').mkdir()
     shutil.copy2(SOURCE, root / 'scripts' / 'deploy.sh')
-    for name in ['compose.sh','compose.py']:shutil.copy2(SOURCE.parent/name,root/'scripts'/name)
+    for name in ['compose.sh','compose.py','deployment.py']:shutil.copy2(SOURCE.parent/name,root/'scripts'/name)
     private=workspace/'private-config';private.mkdir();config=private/'deployment.json'
     binary = root / 'bin'
     binary.mkdir()
@@ -25,7 +25,7 @@ import os, sys
 from pathlib import Path
 args = sys.argv[1:]
 with Path('docker.log').open('a') as out: out.write(' '.join(args) + '\\n')
-if 'exec' in args: print('fixture database dump')
+if 'db-tools' in args and 'pg_dump' in args: print('fixture database dump')
 if 'pull' in args and os.environ.get('FAIL_PULL'): sys.exit(1)
 ''')
     # Intercept only the health checker; execute the actual environment update code.
@@ -60,6 +60,21 @@ os.execv({sys.executable!r}, [{sys.executable!r}] + sys.argv[1:])
     result = run({'FAIL_HEALTH': '1'})
     assert result.returncode != 0 and (config).read_text() == OLD
     assert (root / 'docker.log').read_text().count('up -d --no-deps app') == 2
+    remote={**json.loads(OLD),'DATABASE_MODE':'external','POSTGRES_HOST':'postgres.example.org'}
+    config.write_text(json.dumps(remote))
+    result=run()
+    assert result.returncode==0,result.stderr
+    assert 'db-tools pg_dump -Fc' in (root/'docker.log').read_text()
+    assert 'exec -T db' not in (root/'docker.log').read_text()
+    candidate=private/'candidate.json'
+    candidate.write_text(json.dumps({**remote,'POSTGRES_HOST':'different.example.org'}))
+    config.write_text(json.dumps(remote))
+    result=run({'RELAYIX_DEPLOY_CONFIG_CANDIDATE':str(candidate)})
+    assert result.returncode!=0 and json.loads(config.read_text())==remote
+    assert 'Database destination differs' in result.stderr
+    candidate.write_text(json.dumps(remote))
+    result=run({'RELAYIX_DEPLOY_CONFIG_CANDIDATE':str(candidate)})
+    assert result.returncode==0,result.stderr
     result = run({'RELAYIX_EXPECTED_VERSION': 'bad;touch should-not-exist'})
     assert result.returncode != 0 and not (root / 'should-not-exist').exists()
 print('PASS: deployment backup, image persistence, pull failure, health rollback and input validation with fake Docker')

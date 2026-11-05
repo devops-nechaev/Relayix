@@ -37,7 +37,7 @@ Container package visibility is controlled in GitHub Packages. For anonymous pul
 
 ## Deployment configuration and GitHub Secrets
 
-Create the `production` GitHub environment with required reviewers and restrict deployments to the default branch. The existing LAN deployment keeps Compose project `relayix` and PostgreSQL volume `relayix_db_data`.
+Create the `production` GitHub environment with required reviewers and restrict deployments to the default branch. Keep Compose project `relayix` and the data volume selected by `RELAYIX_DB_VOLUME` for an existing installation.
 
 Store these **Secrets** in the production environment:
 
@@ -66,3 +66,9 @@ For manual operation, use `scripts/compose.sh`; it loads the private JSON into t
 After connection/publication, run CI once in GitHub to validate account/runner settings. See [publication checks](PUBLICATION.md). Source preparation and local tests do not publish files or configure remote Secrets automatically.
 
 References: [GitHub Actions secrets](https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions), [GitHub container publishing](https://docs.github.com/en/actions/tutorials/publish-packages/publish-docker-images).
+
+## Bundled or external PostgreSQL
+
+The normal startup guide is [DEPLOYMENT.md](DEPLOYMENT.md). All database fields live in the private JSON. `DATABASE_MODE=local` selects the bundled database; `external` uses `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, `POSTGRES_DB`, `POSTGRES_PASSWORD` and TLS settings without creating a database service or volume. The workflow retains those fields from the active base configuration. `RELAYIX_POSTGRES_PASSWORD` must match the existing database password in either mode.
+
+The deployment script backs up either database through the one-off `db-tools` client before replacing the app. Select `POSTGRES_CLIENT_IMAGE` for the external server's major version if needed. A candidate cannot silently change database mode/host/port/user/name; perform an explicit backup/restore transfer before changing the active destination. Optional `POSTGRES_SSLROOTCERT` paths refer to files already present on the deployment host, not on the GitHub-hosted build runner.

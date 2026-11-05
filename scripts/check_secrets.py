@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check publication inputs without displaying secret values. No network access."""
+"""Check publication inputs without displaying values; --local inspects the configured deployment."""
 from pathlib import Path
 import json, os, re, subprocess, sys
 
@@ -22,7 +22,7 @@ if config_path.exists():
         if any(term in key.upper() for term in ['PASSWORD','TOKEN','SECRET','API_HASH']) and isinstance(value,str) and len(value)>=12:values.add(value.encode())
 if '--local' in sys.argv:
     fields={'bot_token','token','url','password','user','access_token','webhook_secret','api_hash','proxy_username','proxy_password','proxy_secret','chat_access_hash'}
-    configs=json.loads(subprocess.check_output([str(ROOT/'scripts'/'compose.sh'),'exec','-T','db','sh','-c','exec psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" "$@"','psql','-Atc',"SELECT COALESCE(jsonb_agg(config),'[]') FROM channels"],cwd=ROOT))
+    configs=json.loads(subprocess.check_output([str(ROOT/'scripts'/'compose.sh'),'run','--rm','--no-deps','-T','db-tools','psql','-X','-Atc',"SELECT COALESCE(jsonb_agg(config),'[]') FROM channels"],cwd=ROOT))
     for cfg in configs:
         for key,value in cfg.items():
             if key in fields and isinstance(value,str) and len(value)>=8:values.add(value.encode())

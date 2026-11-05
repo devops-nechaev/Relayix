@@ -1,0 +1,38 @@
+# Shared services; use scripts/compose.sh to choose the database mode.
+services:
+  app:
+    image: ${RELAYIX_IMAGE:-relayix:0.6.1}
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${RELAYIX_DATABASE_URL:?use scripts/compose.sh with private configuration}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      TELEGRAM_API_ID: ${TELEGRAM_API_ID:-}
+      TELEGRAM_API_HASH: ${TELEGRAM_API_HASH:-}
+      PORT: '8080'
+      RUST_LOG: ${RUST_LOG:-relayix=info}
+      ALLOW_INSECURE_HTTP: ${ALLOW_INSECURE_HTTP:-false}
+    ports:
+      - '${BIND_ADDRESS:-127.0.0.1}:${PORT:-8080}:8080'
+    security_opt:
+      - no-new-privileges:true
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+  db-tools:
+    image: ${POSTGRES_CLIENT_IMAGE:-postgres:17.11-trixie}
+    profiles: [tools]
+    environment:
+      PGHOST: ${PGHOST:?use scripts/compose.sh}
+      PGPORT: ${PGPORT:-5432}
+      PGUSER: ${PGUSER:-relayix}
+      PGDATABASE: ${PGDATABASE:-relayix}
+      PGPASSWORD: ${PGPASSWORD:?use scripts/compose.sh}
+      PGSSLMODE: ${PGSSLMODE:-disable}
+      PGSSLROOTCERT: ${PGSSLROOTCERT:-}
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    command: [pg_isready]
+    security_opt:
+      - no-new-privileges:true

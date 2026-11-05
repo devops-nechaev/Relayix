@@ -1,0 +1,14 @@
+# Added automatically when POSTGRES_SSLROOTCERT points to a host CA file.
+services:
+  app:
+    volumes:
+      - type: bind
+        source: ${POSTGRES_SSLROOTCERT:?set the host CA certificate path}
+        target: /run/relayix/postgres-ca.crt
+        read_only: true
+  db-tools:
+    volumes:
+      - type: bind
+        source: ${POSTGRES_SSLROOTCERT:?set the host CA certificate path}
+        target: /run/relayix/postgres-ca.crt
+        read_only: true

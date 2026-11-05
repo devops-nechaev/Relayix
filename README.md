@@ -1,6 +1,29 @@
 # Relayix 0.6.1 Beta
 
-A self-hosted notification hub: Rust / Axum / React / PostgreSQL. English interface, light and dark themes. Production runs the **prebuilt `relayix:0.6.1` Docker image** and PostgreSQL using Compose. No Node container or source compilation is required on the target server.
+A self-hosted notification hub: Rust / Axum / React / PostgreSQL. English interface, light and dark themes. Docker Compose runs the application with bundled or external PostgreSQL. Build the image in Docker or use a published image; all deployment settings live in one private JSON file.
+
+## Запуск через Docker Compose
+
+**Все переменные задаются в одном приватном файле** `../private/relayix-config/deployment.json`. Подробная пошаговая инструкция: **[база внутри Compose, удалённая база и PostgreSQL на хосте](docs/DEPLOYMENT.md)**.
+
+Для новой установки со встроенной PostgreSQL:
+
+```bash
+git clone https://github.com/devops-nechaev/Relayix.git
+cd Relayix
+docker build --pull -t relayix:0.6.1 .
+python3 scripts/write_config.py ../private/relayix-config/deployment.json --database local --generate
+nano ../private/relayix-config/deployment.json
+scripts/compose.sh up -d
+scripts/compose.sh ps
+curl --fail http://127.0.0.1:8080/healthz
+```
+
+Откройте `http://127.0.0.1:8080` на хосте; логин и пароль находятся в `ADMIN_USERNAME` / `ADMIN_PASSWORD` созданного файла. Для доступа по сети настройте `BIND_ADDRESS` и используйте адрес сервера.
+
+Для готовой PostgreSQL создайте конфигурацию с `--database external --generate`, затем заполните `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, `POSTGRES_DB`, существующий `POSTGRES_PASSWORD` и TLS-параметры. Команда запуска остаётся `scripts/compose.sh up -d`; локальная база не запускается. Для базы на хосте используйте `POSTGRES_HOST=host.docker.internal`. [Полный пример](docs/DEPLOYMENT.md#вариант-b-готовая-удалённая-база).
+
+Docker Compose v2 и Python 3.10+ нужны на хосте; Rust/Node.js устанавливать не требуется. Если используете опубликованный образ, укажите его адрес в `RELAYIX_IMAGE` вместо локального тега и выполните `docker pull` вместо сборки. [GitHub/GHCR](docs/GITHUB.md), [обновление существующей установки](UPGRADE.md).
 
 ## Screenshots
 
@@ -13,30 +36,6 @@ The screenshots use demonstration data and show the current interface.
 ### Channels and integrations · light theme
 
 ![Relayix compact channel list and available integrations](docs/screenshots/relayix-channels-light.png)
-
-## Run the Docker image
-
-Production Compose uses the prebuilt `relayix:0.6.1` image already present in Docker. If distributing through a registry, set `RELAYIX_IMAGE` to that image reference. The source tree contains no image exports, ZIP bundles or generated deployment reports.
-
-```bash
-docker image inspect relayix:0.6.1 --format '{{.Id}}'
-```
-
-Deployment configuration lives outside the checkout in `../private/relayix-config/deployment.json` (directory 700, file 600). No `.env` file is used in the source root. `config/deployment.example.json` contains nonsecret defaults only.
-
-For a new installation, generate private values and start:
-
-```bash
-python3 scripts/write_config.py ../private/relayix-config/deployment.json --generate
-scripts/compose.sh up -d
-scripts/compose.sh ps
-```
-
-The generator prints no passwords/tokens. Open the private file locally to obtain bootstrap credentials. Set its `BIND_ADDRESS` and `PORT` for your host. The default bind is loopback. Compose uses project `relayix`, PostgreSQL role/database `relayix` and the `relayix_db_data` volume. Existing installations must preserve their database settings or follow the backup/restore procedure in [UPGRADE.md](UPGRADE.md).
-
-`scripts/compose.sh` passes the private JSON settings in the Docker process environment and disables automatic `.env` discovery. `RELAYIX_CONFIG_FILE` selects another external JSON file; configuration inside the source checkout is rejected. Production uses a prebuilt image; no source build is needed on the target server. Build locally with `docker build -t relayix:0.6.1 .` when developing.
-
-For GitHub deployments, store credentials in the `production` environment's **Secrets**, not Variables. The deployment workflow renders a private candidate from Secrets, backs up the active external configuration/database, preserves the database password and checks health. See [GitHub configuration](docs/GITHUB.md) and [upgrade instructions](UPGRADE.md).
 
 ## Runtime and dependencies
 
@@ -181,7 +180,7 @@ Delivery query fields: `status` (`sent`, `failed`, `queued`, `processing`, `retr
 scripts/check.sh
 ```
 
-Docker builds use the committed Cargo.lock and npm package-lock.json. The check script builds Rust/React, runs Rust unit tests, creates a temporary PostgreSQL database and local HTTP/SMTP providers, runs API/queue/SMTP checks and then Chromium desktop/mobile tests. It always removes its isolated containers. Screenshots and failure logs are written to `/tmp/relayix-test-artifacts`, outside the source tree. Tests do not send to real provider accounts.
+The verification script requires Docker Compose, Python 3 and OpenSSL on the host. Docker builds use the committed Cargo.lock and npm package-lock.json. The check script builds Rust/React, runs Rust unit tests, creates a temporary PostgreSQL database and local HTTP/SMTP providers, runs API/queue/SMTP checks and then Chromium desktop/mobile tests. It always removes its isolated containers. Screenshots and failure logs are written to `/tmp/relayix-test-artifacts`, outside the source tree. Tests do not send to real provider accounts.
 
 For development without Docker, install Rust 1.99.1+ and Node 26.13+, run `npm ci` and `npm run build` in `web/`, then `cargo test --locked` from the root.
 
