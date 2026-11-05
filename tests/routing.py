@@ -41,9 +41,11 @@ def verify(api, anonymous):
         update(min_priority=4)
         expect(event({'title': 'Default below minimum'}), 0, 'priority_below_minimum', matched=False)
         expect(event({'priority': 4}), 2, 'queued')
-        update(min_priority=1, required_tag='prod')
-        filtered = expect(event({'priority': 3}), 0, 'tag_mismatch', matched=False)
-        assert not filtered['tags_match'] and filtered['required_tag'] == 'prod'
+        update(min_priority=1, required_tag='Deploy')
+        labeled = expect(event({'title':'GitLab CI Tests','message':'IntTests BackOffice\nBranch: master\n\nStatus: \u2705\nFailed: 0\nPassed: 125\nSkipped: 2'}), 2, 'queued')
+        assert labeled['route_tag'] == 'Deploy' and not labeled['tag_filter_applied']
+        expect(event({'tags': ['different']}), 2, 'queued')
+        assert api.ok('/api/deliveries?route_id=' + route['id'] + '&tag=Deploy')['total'] == api.ok('/api/deliveries?route_id=' + route['id'])['total']
         expect(event({'tags': [' prod ']}), 2, 'queued')
         update(required_tag=None)
         api.ok('/api/channels/' + channels[1], {**configs[1], 'enabled': False}, 'PUT')

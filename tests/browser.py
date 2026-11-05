@@ -133,10 +133,10 @@ with sync_playwright() as p:
         preview = json.loads(tester.get_by_label('Test webhook JSON', exact=True).text_content())
         assert 'priority' not in preview and 'tags' not in preview and not submitted
         tester.get_by_role('button', name='Send test webhook', exact=True).click()
-        expect(tester.get_by_role('region',name='Routing result').get_by_role('status')).to_have_text('The event does not contain the tag required by this route.')
-        expect(tester.get_by_text('0 queued', exact=True)).to_be_visible()
+        expect(tester.get_by_role('region',name='Routing result').get_by_role('status')).to_have_text('Accepted and queued for delivery.')
+        expect(tester.get_by_text('2 queued', exact=True)).to_be_visible()
         assert len(submitted) == 1
-        tester.get_by_label('Tags (optional)', exact=True).fill('prod')
+        tester.get_by_label('Tags (optional)', exact=True).fill('different')
         tester.get_by_role('button', name='Send test webhook', exact=True).click()
         expect(tester.get_by_text('2 queued', exact=True)).to_be_visible()
         assert len(submitted) == 2
@@ -144,14 +144,17 @@ with sync_playwright() as p:
         page.remove_listener('request', observe_test)
         for _ in range(100):
             rows = page.request.get(BASE + '/api/deliveries?route_id=' + fixture_route['id'], headers=auth).json()['items']
-            if len(rows) == 2 and all(row['status'] == 'sent' for row in rows):
+            if len(rows) == 4 and all(row['status'] == 'sent' for row in rows):
                 break
             page.wait_for_timeout(100)
         else:
             raise AssertionError('Route test did not reach both local webhook receivers')
         tester.get_by_role('button', name='View test deliveries', exact=True).click()
         expect(page.get_by_label('Route', exact=True)).to_have_value(fixture_route['id'])
-        expect(page.locator('.delivery-title').filter(has_text='Browser route test')).to_have_count(2)
+        expect(page.locator('.delivery-title').filter(has_text='Browser route test')).to_have_count(4)
+        page.get_by_label('Tag',exact=True).fill('prod')
+        page.get_by_role('button',name='Apply filters',exact=True).click()
+        expect(page.locator('.delivery-title').filter(has_text='Browser route test')).to_have_count(4)
         page.get_by_role('button', name='Reset filters', exact=True).click()
     finally:
         if fixture_route:
@@ -160,7 +163,7 @@ with sync_playwright() as p:
             page.request.delete(BASE + '/api/channels/' + identifier, headers=auth)
     page.get_by_role('button', name='Dashboard', exact=True).click()
     expect(page.get_by_role('heading', name='Dashboard', exact=True)).to_be_visible()
-    print('PASS: route tester copies optional-field JSON without sending, explains tag filtering, queues real notifications and opens delivery results')
+    print('PASS: route tester copies optional-field JSON without sending, keeps route tags UI-only, queues real notifications and opens delivery results')
     print('PASS: refresh keeps page/header/scroll stable through loading, success, dismissal and errors; channel input owns focus and typing at 150% scale')
     for theme in ['Dark', 'Light']:
         page.get_by_role('button', name=theme, exact=True).click()
@@ -325,7 +328,7 @@ with sync_playwright() as p:
     expect(dialog.get_by_label('Route slug', exact=True)).to_have_count(0)
     route_name = 'Release notifications with a deliberately long readable endpoint'
     dialog.get_by_label('Name', exact=True).fill(route_name)
-    dialog.get_by_label('Tag (optional)', exact=True).fill('deploy')
+    dialog.get_by_label('Tag (UI only)', exact=True).fill('deploy')
     dialog.get_by_role('group', name='Recipients', exact=True).get_by_label('webhook', exact=True).check()
     with page.expect_response(lambda r: r.url.endswith('/api/routes') and r.request.method == 'POST') as created:
         dialog.get_by_role('button', name='Save', exact=True).click()

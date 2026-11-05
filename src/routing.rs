@@ -71,23 +71,22 @@ struct Report {
     priority: i32,
     min_priority: i32,
     priority_match: bool,
-    required_tag: Option<String>,
-    tags_match: bool,
+    route_tag: Option<String>,
+    tag_filter_applied: bool,
     destinations: usize,
     active_destinations: usize,
     recipients: Vec<Recipient>,
 }
 
 fn report(endpoint: &Endpoint, event: &Event, destinations: Vec<Destination>) -> Report {
-    let required = endpoint.required_tag.as_deref().map(str::trim).filter(|tag| !tag.is_empty());
+    let route_tag = endpoint.required_tag.as_deref().map(str::trim).filter(|tag| !tag.is_empty());
     let priority_match = event.priority >= endpoint.min_priority;
-    let tags_match = required.map(|required| event.tags.iter().any(|tag| tag == required)).unwrap_or(true);
-    let matched = endpoint.enabled && priority_match && tags_match;
+    // The legacy required_tag column is a UI label, never a delivery condition.
+    let matched = endpoint.enabled && priority_match;
     let total = destinations.len();
     let active = destinations.iter().filter(|destination| destination.enabled).count();
     let reason = if !endpoint.enabled { "route_disabled" }
         else if !priority_match { "priority_below_minimum" }
-        else if !tags_match { "tag_mismatch" }
         else if total == 0 { "no_destinations" }
         else if active == 0 { "no_active_destinations" }
         else { "queued" };
@@ -99,8 +98,8 @@ fn report(endpoint: &Endpoint, event: &Event, destinations: Vec<Destination>) ->
             enabled: destination.enabled, queued, reason: recipient_reason }
     }).collect();
     Report { route_id: endpoint.id, route_name: endpoint.name.clone(), matched, reason, route_enabled: endpoint.enabled, priority: event.priority,
-        min_priority: endpoint.min_priority, priority_match, required_tag: required.map(str::to_owned),
-        tags_match, destinations: total, active_destinations: active, recipients }
+        min_priority: endpoint.min_priority, priority_match, route_tag: route_tag.map(str::to_owned),
+        tag_filter_applied: false, destinations: total, active_destinations: active, recipients }
 }
 
 async fn enqueue(s: &AppState, endpoint: Endpoint, payload: Value, test: bool) -> ApiResult<Value> {
@@ -129,7 +128,7 @@ async fn enqueue(s: &AppState, endpoint: Endpoint, payload: Value, test: bool) -
     }
     tx.commit().await.map_err(db_error)?;
     tracing::info!(%event_id, route_id=%endpoint.id, reason=routing.reason, matched=routing.matched,
-        priority=event.priority, min_priority=endpoint.min_priority, tags_match=routing.tags_match,
+        priority=event.priority, min_priority=endpoint.min_priority, tag_filter_applied=false,
         destinations=routing.destinations, active_destinations=routing.active_destinations, queued, test,
         "webhook routing evaluated");
     for recipient in routing.recipients.iter().filter(|recipient| !recipient.queued) {
@@ -176,7 +175,8 @@ mod tests {
             assert_eq!(event.priority, 3); assert!(event.tags.is_empty());
             assert!(report(&endpoint(None, 1), &event, vec![]).matched);
             assert!(report(&endpoint(Some("  "), 1), &event, vec![]).matched);
-            assert_eq!(report(&endpoint(Some("prod"), 1), &event, vec![]).reason, "tag_mismatch");
+            assert!(report(&endpoint(Some("Deploy"), 1), &event, vec![]).matched);
+            assert!(!report(&endpoint(Some("Deploy"), 1), &event, vec![]).tag_filter_applied);
             assert_eq!(report(&endpoint(None, 4), &event, vec![]).reason, "priority_below_minimum");
         }
         assert!(parse_event(&json!({"tags":"prod"})).is_err());

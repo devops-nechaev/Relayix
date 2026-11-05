@@ -6,7 +6,6 @@ const reasons={
  queued:'Accepted and queued for delivery.',
  route_disabled:'The route is disabled.',
  priority_below_minimum:'The event priority is below the route minimum.',
- tag_mismatch:'The event does not contain the tag required by this route.',
  no_destinations:'No recipients are linked to this route.',
  no_active_destinations:'All linked recipients are disabled.',
  destination_disabled:'Recipient disabled.',
@@ -19,20 +18,19 @@ export function RouteTestDialog({route,onClose,onTest,onCopy,onViewDeliveries}) 
  const tags=tagText.split(',').map(tag=>tag.trim()).filter(Boolean);
  const valid=title.trim()&&(priority===''||(Number.isInteger(Number(priority))&&Number(priority)>=1&&Number(priority)<=5))&&tags.length<=32&&tags.every(tag=>tag.length<=64);
  const payload={title,message,...(priority!==''?{priority:Number(priority)}:{}),...(tags.length?{tags}:{})};
- const required=route.required_tag?.trim();
  const update=(setter,value)=>{setter(value);setResult(null);setError('');setNotice('')};
  const send=async e=>{e.preventDefault();if(!valid)return;setBusy(true);setResult(null);setError('');setNotice('');try{setResult(await onTest(payload))}catch(e){setError(e.message);if(e.data?.routing)setResult(e.data)}finally{setBusy(false)}};
  const copy=async()=>{setNotice('');try{await onCopy(JSON.stringify(payload,null,2));setNotice('Test JSON copied')}catch(e){setError(e.message)}};
  return <Dialog title="Test webhook" description={route.name} onClose={onClose} busy={busy}><form className="route-test" onSubmit={send}>
-  <p className="helptext">Sends a real notification through this route. Only matching, enabled recipients are queued.</p>
+  <p className="helptext">Sends a real notification through this route. Route priority and recipient status decide delivery; tags are UI labels only.</p>
   <Field label="Test title"><input value={title} maxLength={256} required onChange={e=>update(setTitle,e.target.value)}/></Field>
   <Field label="Test message"><textarea value={message} rows={2} maxLength={10000} onChange={e=>update(setMessage,e.target.value)}/></Field>
   <Field label="Priority (optional)" help={`Minimum for this route: ${route.min_priority}. Webhooks without priority use 3.`}><input type="number" value={priority} min={1} max={5} placeholder="3 (default)" onChange={e=>update(setPriority,e.target.value)}/></Field>
-  <Field label="Tags (optional)" help={required?`This route requires the tag: ${required}`:'This route has no tag filter. Tags may be omitted.'}><input value={tagText} placeholder="production, deploy" onChange={e=>update(setTagText,e.target.value)}/></Field>
+  <Field label="Tags (optional)" help="Optional message labels for filtering delivery history. They do not affect routing."><input value={tagText} placeholder="production, deploy" onChange={e=>update(setTagText,e.target.value)}/></Field>
   <details className="test-json"><summary>Test JSON</summary><pre aria-label="Test webhook JSON">{JSON.stringify(payload,null,2)}</pre></details>
   <div className="test-copy"><button type="button" className="secondary" onClick={copy} disabled={!valid||busy}><Copy size={15}/> Copy test JSON</button><span role="status">{notice}</span></div>
   <ErrorMessage error={error}/>
-  {result?.routing&&<section className="routing-result" aria-label="Routing result"><h3>Routing result</h3><p>Route: <strong>{result.routing.route_name}</strong></p><p role="status">{reasons[result.routing.reason]||result.routing.reason}</p><p className="helptext">Priority {result.routing.priority} / minimum {result.routing.min_priority} · Required tag: {result.routing.required_tag||'None'}</p><p><strong>{result.queued||0} queued</strong> · {result.routing.active_destinations} active / {result.routing.destinations} linked recipients</p>
+  {result?.routing&&<section className="routing-result" aria-label="Routing result"><h3>Routing result</h3><p>Route: <strong>{result.routing.route_name}</strong></p><p role="status">{reasons[result.routing.reason]||result.routing.reason}</p><p className="helptext">Priority {result.routing.priority} / minimum {result.routing.min_priority} · Route tag: {result.routing.route_tag||'None'} (UI only)</p><p><strong>{result.queued||0} queued</strong> · {result.routing.active_destinations} active / {result.routing.destinations} linked recipients</p>
    {!!result.routing.recipients?.length&&<ul>{result.routing.recipients.map(recipient=><li key={recipient.id}><span>{recipient.name}</span><small>{recipient.queued?'Queued':reasons[recipient.reason]||recipient.reason}</small></li>)}</ul>}
    {result.event_id&&<p className="helptext">Event: <code>{result.event_id}</code></p>}
    <details><summary>API response</summary><pre>{JSON.stringify(result,null,2)}</pre></details>
