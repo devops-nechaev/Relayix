@@ -2,6 +2,8 @@
 
 ## 0.6.2 Beta — 2026-11-05
 
+- Distribute standalone Compose files and a blank environment template with the release: download, set two passwords and run `docker compose up -d`; no source build or host Python is needed.
+
 - Use Debian Trixie throughout application, build and test images with Rust 1.99.1, Node.js 26.13.0 LTS, Python 3.15.2 and PostgreSQL 17.11.
 - Update stable Rust and npm dependencies, regenerate Python locks for Python 3.15, and refresh dependency licenses and Playwright.
 - Support bundled, external and host PostgreSQL through one private settings file, including custom CA certificates and database backup tools.
