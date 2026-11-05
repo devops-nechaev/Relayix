@@ -1,11 +1,11 @@
-FROM node:22-alpine AS web-builder
+FROM node:26.13.0-trixie-slim AS web-builder
 WORKDIR /web
 COPY web/package*.json ./
 RUN npm ci --no-audit --no-fund
 COPY web/ ./
 RUN npm run build
 
-FROM rust:1-bookworm AS rust-builder
+FROM rust:1.99.1-trixie AS rust-builder
 WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
 COPY src src
@@ -14,8 +14,8 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/app/target \
     cargo test --locked --release && cargo build --locked --release && cp target/release/relayix /app/relayix
 
-FROM python:3.11-slim-bookworm
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/* \
+FROM python:3.15.2-slim-trixie
+RUN apt-get update && apt-get upgrade -y --no-install-recommends && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/* \
     && useradd --system --uid 10001 --home-dir /nonexistent --shell /usr/sbin/nologin relayix
 COPY transport/requirements.txt /app/transport/requirements.txt
 RUN pip install --no-cache-dir --require-hashes -r /app/transport/requirements.txt

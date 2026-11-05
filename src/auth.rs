@@ -1,5 +1,5 @@
 use crate::*;
-use argon2::{password_hash::{SaltString, PasswordHash}, Argon2, PasswordHasher, PasswordVerifier};
+use argon2::{password_hash::{phc::PasswordHash, PasswordHasher, PasswordVerifier}, Argon2};
 use axum::http::{header, HeaderValue};
 use tokio::sync::Semaphore;
 
@@ -46,8 +46,7 @@ fn username_valid(username: &str) -> bool {
 async fn password_hash(password: String) -> Result<String> {
     let permit = PASSWORD_WORK.acquire().await?;
     let hash = tokio::task::spawn_blocking(move || {
-        let salt = SaltString::generate(&mut rand::rngs::OsRng);
-        Argon2::default().hash_password(password.as_bytes(), &salt).map(|h|h.to_string()).map_err(|_|anyhow!("Password hashing failed"))
+        Argon2::default().hash_password(password.as_bytes()).map(|h|h.to_string()).map_err(|_|anyhow!("Password hashing failed"))
     }).await??;
     drop(permit); Ok(hash)
 }

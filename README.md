@@ -38,6 +38,12 @@ The generator prints no passwords/tokens. Open the private file locally to obtai
 
 For GitHub deployments, store credentials in the `production` environment's **Secrets**, not Variables. The deployment workflow renders a private candidate from Secrets, backs up the active external configuration/database, preserves the database password and checks health. See [GitHub configuration](docs/GITHUB.md) and [upgrade instructions](UPGRADE.md).
 
+## Runtime and dependencies
+
+Application, build and test images use Debian 13 Trixie. The verified toolchain is Rust 1.99.1, Node.js 26.13.0 LTS and Python 3.15.2; PostgreSQL uses the maintained 17.11 release on Trixie. Debian packages are upgraded from stable repositories during application/test image builds. Cargo, npm and Python dependencies are locked, and Python packages retain mandatory artifact hashes.
+
+The November 2026 refresh includes React 19.3.1, Vite 8.3.6, Lucide 1.69.0, SQLx 0.9.0, Reqwest 0.13.5, Argon2 0.6.0 and rand 0.10.3. See [upgrade notes](UPGRADE.md) before switching an existing PostgreSQL volume between base distributions. `RELAYIX_DB_VOLUME` selects an existing named data volume; keep that setting in the private deployment JSON after a transfer.
+
 ## Accounts and profiles
 
 - Username/password login with Argon2id password hashes and salted passwords.
@@ -177,7 +183,7 @@ scripts/check.sh
 
 Docker builds use the committed Cargo.lock and npm package-lock.json. The check script builds Rust/React, runs Rust unit tests, creates a temporary PostgreSQL database and local HTTP/SMTP providers, runs API/queue/SMTP checks and then Chromium desktop/mobile tests. It always removes its isolated containers. Screenshots and failure logs are written to `/tmp/relayix-test-artifacts`, outside the source tree. Tests do not send to real provider accounts.
 
-For development without Docker, install Rust and Node 22+, run `npm ci` and `npm run build` in `web/`, then `cargo test --locked` from the root.
+For development without Docker, install Rust 1.99.1+ and Node 26.13+, run `npm ci` and `npm run build` in `web/`, then `cargo test --locked` from the root.
 
 GitHub CI, GHCR delivery and first repository setup are described in [docs/GITHUB.md](docs/GITHUB.md). See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidance and [SECURITY.md](SECURITY.md) for private vulnerability reporting.
 

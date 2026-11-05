@@ -2,6 +2,10 @@
 
 ## Unreleased — 2026-11-05
 
+- Move application, builders and test containers to Debian Trixie with stable package updates; use Rust 1.99.1, Node.js 26.13.0 LTS, Python 3.15.2 and PostgreSQL 17.11.
+- Refresh stable Rust, npm and Python dependencies and license inventories; adapt Argon2, rand, SQLx and Reqwest APIs and refresh Playwright.
+- Allow explicit PostgreSQL image/data-volume selection for verified transfers between base distributions.
+
 - Finish the Relayix rename across Compose, PostgreSQL defaults, browser storage/session cookies, scripts and documentation. Preserve applied migration checksums and update failure-alert branding in a new migration.
 
 - Compact channel rows show destination, connection, status and actions without credential placeholders.

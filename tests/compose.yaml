@@ -1,7 +1,7 @@
 # Isolated smoke test. No host ports or persistent database volumes.
 services:
   db:
-    image: postgres:17-alpine
+    image: postgres:17.11-trixie
     environment:
       POSTGRES_USER: relayix
       POSTGRES_PASSWORD: ${RELAYIX_TEST_POSTGRES_PASSWORD:?generated test runtime required}
@@ -17,7 +17,7 @@ services:
     environment:
       RELAYIX_TEST_CREDENTIALS_FILE: /run/relayix-test/credentials.json
       RELAYIX_TEST_BASE_URL: ${RELAYIX_TEST_BASE_URL:?generated test runtime required}
-    image: python:3.13-alpine
+    image: python:3.15.2-slim-trixie
     command: ['python', '/tests/mock_services.py']
     volumes:
       - ${RELAYIX_TEST_RUNTIME_DIR:?generated test runtime required}:/run/relayix-test:ro
@@ -26,12 +26,15 @@ services:
     environment:
       RELAYIX_TEST_CREDENTIALS_FILE: /run/relayix-test/credentials.json
       RELAYIX_TEST_BASE_URL: ${RELAYIX_TEST_BASE_URL:?generated test runtime required}
-    image: python:3.13-alpine
+    image: python:3.15.2-slim-trixie
     command: ['python', '/tests/mock_proxy.py']
     volumes:
       - ${RELAYIX_TEST_RUNTIME_DIR:?generated test runtime required}:/run/relayix-test:ro
       - ./:/tests:ro
   app:
+    networks:
+      default:
+        aliases: [relayix.test]
     image: ${RELAYIX_TEST_IMAGE:-relayix:0.6.1}
     environment:
       DATABASE_URL: postgres://relayix:${RELAYIX_TEST_POSTGRES_PASSWORD:?generated test runtime required}@db:5432/relayix

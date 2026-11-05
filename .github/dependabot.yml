@@ -16,3 +16,11 @@ updates:
     directory: /transport
     schedule:
       interval: weekly
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker
+    directory: /tests
+    schedule:
+      interval: weekly

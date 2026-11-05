@@ -15,7 +15,7 @@ credentials.update({key:password() for key in ['admin_password','browser_passwor
 credentials.update(postgres_password=secrets.token_hex(32),proxy_username=secrets.token_hex(12),smtp_username=secrets.token_hex(12),telegram_token=str(secrets.randbelow(10**9))+':'+secrets.token_urlsafe(32))
 (target/'credentials.json').write_text(json.dumps(credentials));(target/'credentials.json').chmod(0o600)
 lines=[f'RELAYIX_TEST_{key.upper()}={value}' for key,value in credentials.items()]
-lines+=['RELAYIX_TEST_BASE_URL=http://app:8080',f'RELAYIX_TEST_RUNTIME_DIR={target}']
+lines+=['RELAYIX_TEST_BASE_URL=http://relayix.test:8080',f'RELAYIX_TEST_RUNTIME_DIR={target}']
 (target/'compose.env').write_text('\n'.join(lines)+'\n');(target/'compose.env').chmod(0o600)
 if os.environ.get('GITHUB_ACTIONS')=='true':
     for value in credentials.values():print('::add-mask::'+value)

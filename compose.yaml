@@ -21,7 +21,7 @@ services:
     security_opt:
       - no-new-privileges:true
   db:
-    image: postgres:17-alpine
+    image: ${POSTGRES_IMAGE:-postgres:17.11-trixie}
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-relayix}
@@ -36,3 +36,4 @@ services:
       retries: 15
 volumes:
   db_data:
+    name: ${RELAYIX_DB_VOLUME:-${COMPOSE_PROJECT_NAME:-relayix}_db_data}

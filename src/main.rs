@@ -11,7 +11,7 @@ use std::{env, sync::Arc, time::Duration};
 use anyhow::{anyhow, Result};
 use axum::{extract::{Path, Query, State, DefaultBodyLimit}, http::{HeaderMap, StatusCode}, routing::{get, post}, Json, Router};
 use chrono::{DateTime, Utc};
-use rand::{distributions::Alphanumeric, Rng};
+use rand::{distr::Alphanumeric, RngExt};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -27,7 +27,7 @@ fn err(code: StatusCode, msg: impl ToString) -> (StatusCode, Json<Value>) { (cod
 fn unauthorized() -> (StatusCode, Json<Value>) { err(StatusCode::UNAUTHORIZED, "Invalid credentials or expired session") }
 fn db_error(e: sqlx::Error) -> (StatusCode, Json<Value>) { tracing::error!(error=%e, "database error"); err(StatusCode::INTERNAL_SERVER_ERROR, "Database error") }
 fn hash(v: &str) -> String { hex::encode(Sha256::digest(v.as_bytes())) }
-fn key() -> String { rand::thread_rng().sample_iter(&Alphanumeric).take(48).map(char::from).collect() }
+fn key() -> String { rand::rng().sample_iter(&Alphanumeric).take(48).map(char::from).collect() }
 
 #[derive(Serialize, FromRow)]
 struct Channel { id: Uuid, name: String, kind: String, config: Value, enabled: bool, created_at: DateTime<Utc> }
@@ -198,10 +198,10 @@ async fn deliveries(State(s):State<AppState>,h:HeaderMap,Query(mut filter):Query
  let page=filter.page.unwrap_or(1).clamp(1,1000000);let page_size=filter.page_size.unwrap_or(50).clamp(1,100);
  let search=filter.search.as_ref().filter(|v|!v.is_empty()).map(|v|format!("%{v}%"));
  let condition=" FROM deliveries d JOIN events e ON e.id=d.event_id JOIN channels c ON c.id=d.channel_id JOIN routes r ON r.id=e.route_id WHERE ($1::text IS NULL OR d.status=$1 OR ($1='retrying' AND d.status='queued' AND d.error IS NOT NULL)) AND ($2::uuid IS NULL OR d.channel_id=$2) AND ($3::uuid IS NULL OR e.route_id=$3) AND ($4::timestamptz IS NULL OR d.created_at>=$4) AND ($5::timestamptz IS NULL OR d.created_at<=$5) AND ($6::text IS NULL OR e.title ILIKE $6 OR c.name ILIKE $6 OR r.name ILIKE $6 OR COALESCE(d.error,'') ILIKE $6) AND ($7::text IS NULL OR e.tags @> jsonb_build_array($7::text))";
- let count_sql=format!("SELECT COUNT(*){condition}");
- let (total,):(i64,)=sqlx::query_as(&count_sql).bind(&filter.status).bind(filter.channel_id).bind(filter.route_id).bind(filter.from).bind(filter.to).bind(&search).bind(filter.tag.as_deref().filter(|t|!t.is_empty())).fetch_one(&s.db).await.map_err(db_error)?;
- let rows_sql=format!("SELECT d.id,d.event_id,e.route_id,d.channel_id,c.name AS channel_name,c.kind AS channel_kind,r.name AS route_name,e.title,e.tags,d.status,d.attempts,d.error,d.created_at,d.sent_at{condition} ORDER BY d.created_at DESC,d.id DESC LIMIT $8 OFFSET $9");
- let items=sqlx::query_as::<_,Delivery>(&rows_sql).bind(&filter.status).bind(filter.channel_id).bind(filter.route_id).bind(filter.from).bind(filter.to).bind(&search).bind(filter.tag.as_deref().filter(|t|!t.is_empty())).bind(page_size).bind((page-1)*page_size).fetch_all(&s.db).await.map_err(db_error)?;
+ let mut count_sql=sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT COUNT(*)");count_sql.push(condition);
+ let (total,):(i64,)=count_sql.build_query_as::<(i64,)>().bind(&filter.status).bind(filter.channel_id).bind(filter.route_id).bind(filter.from).bind(filter.to).bind(&search).bind(filter.tag.as_deref().filter(|t|!t.is_empty())).fetch_one(&s.db).await.map_err(db_error)?;
+ let mut rows_sql=sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT d.id,d.event_id,e.route_id,d.channel_id,c.name AS channel_name,c.kind AS channel_kind,r.name AS route_name,e.title,e.tags,d.status,d.attempts,d.error,d.created_at,d.sent_at");rows_sql.push(condition).push(" ORDER BY d.created_at DESC,d.id DESC LIMIT $8 OFFSET $9");
+ let items=rows_sql.build_query_as::<Delivery>().bind(&filter.status).bind(filter.channel_id).bind(filter.route_id).bind(filter.from).bind(filter.to).bind(&search).bind(filter.tag.as_deref().filter(|t|!t.is_empty())).bind(page_size).bind((page-1)*page_size).fetch_all(&s.db).await.map_err(db_error)?;
  Ok(Json(json!({"items":items,"total":total,"page":page,"page_size":page_size})))
 }
 async fn retry(State(s):State<AppState>,h:HeaderMap,Path(id):Path<Uuid>)->ApiResult<Value>{

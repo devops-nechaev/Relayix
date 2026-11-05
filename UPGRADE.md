@@ -37,3 +37,11 @@ Changing a Compose project name selects a different volume. Stop the old applica
 Retain the original stopped containers, volume and private configuration backup until the transferred deployment is verified. A rollback after new writes requires preserving those new writes too; switching to the old volume alone would discard them. Never run `down -v` during this procedure.
 
 The session cookie and local browser-storage keys now use `relayix`. Sign in again after upgrading. Saved account preferences remain in PostgreSQL. Historical migration files deliberately retain their original content because SQLx verifies their checksums.
+
+## Debian Trixie and dependency refresh
+
+The updated application uses Python 3.15.2 on Trixie, built with Rust 1.99.1 and Node.js 26.13.0 LTS. The database image is PostgreSQL 17.11 on Trixie. The PostgreSQL major version remains 17.
+
+Before moving an existing cluster from another base distribution, take a final logical backup while the source app is stopped. Restore into an empty Trixie-initialized database, compare table contents and confirm that existing password hashes authenticate with the updated application. This rebuilds indexes using the target distribution's collation implementation. Keep the source volume and image for rollback rather than attaching the existing cluster to a different libc/locale implementation without checking collation versions.
+
+Persist the transferred volume name in `RELAYIX_DB_VOLUME` and the selected database image in `POSTGRES_IMAGE` in the private JSON. A database rollback must restore the matching image, volume and application configuration together; preserve any writes accepted after cutover.

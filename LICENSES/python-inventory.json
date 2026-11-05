@@ -80,11 +80,6 @@
     "license": "MIT"
   },
   {
-    "name": "typing-extensions",
-    "version": "4.16.0",
-    "license": "PSF-2.0"
-  },
-  {
     "name": "websockets",
     "version": "17.4",
     "license": "BSD-3-Clause"
