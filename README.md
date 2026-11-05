@@ -4,7 +4,7 @@ A self-hosted notification hub: Rust / Axum / React / PostgreSQL. English interf
 
 ## Docker Compose quick start
 
-You only need **Docker with Compose v2**. Download the ready-to-run files:
+You only need **Docker with Compose v2.20+**. Download the ready-to-run files:
 
 ```bash
 mkdir relayix && cd relayix
@@ -21,7 +21,7 @@ docker compose up -d
 
 Open **`http://SERVER_IP:8080`** and sign in as **`admin`** with the `ADMIN_PASSWORD` you chose. Replace `SERVER_IP` with the IP address of your Docker host. Compose downloads the published image and starts Relayix and PostgreSQL automatically. Database data is stored in a persistent Docker volume.
 
-For an **existing PostgreSQL server**, download [compose.external.yaml](https://github.com/devops-nechaev/Relayix/releases/download/v0.6.2/compose.external.yaml) as `compose.yaml` instead. In `.env`, set `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, `POSTGRES_DB`, the existing `POSTGRES_PASSWORD` and `POSTGRES_SSLMODE`. Then run the same `docker compose up -d`. See the [setup guide](docs/DEPLOYMENT.md) for a complete example and TLS settings.
+The same `compose.yaml` supports an **existing PostgreSQL server**. In `.env`, change `DATABASE_MODE=external` and fill in the database host, credentials and TLS settings. For a private CA, set `POSTGRES_CA_PATH` to the certificate path on your Docker host. Run the same `docker compose up -d`; the bundled PostgreSQL service is disabled. See the [setup guide](docs/DEPLOYMENT.md) for examples.
 
 ## Updating
 

@@ -88,4 +88,4 @@ jobs:
           if ! gh release view "$tag" >/dev/null 2>&1; then
             gh release create "$tag" --verify-tag --prerelease --title "Relayix $VERSION Beta" --generate-notes
           fi
-          gh release upload "$tag" deploy/compose.yaml deploy/compose.external.yaml deploy/compose.tls.yaml deploy/relayix.env.example --clobber
+          gh release upload "$tag" deploy/compose.yaml deploy/relayix.env.example --clobber

@@ -10,7 +10,6 @@ expected={
  'Cargo.lock':r'name = "relayix"\nversion = "'+re.escape(version)+r'"',
  'Dockerfile':r'org\.opencontainers\.image\.version="'+re.escape(version)+r'"',
  'deploy/compose.yaml':r'(?m)^    image: [^\s]+:'+re.escape(version)+r'$',
- 'deploy/compose.external.yaml':r'(?m)^    image: [^\s]+:'+re.escape(version)+r'$',
  'compose.app.yaml':r'(?m)^    image: [^\s]+:'+re.escape(version)+r'$',
  'web/src/main.jsx':r"const VERSION='"+re.escape(version)+r"';",
  'CHANGELOG.md':r'(?m)^## '+re.escape(version)+r' Beta — \d{4}-\d{2}-\d{2}$',

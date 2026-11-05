@@ -1,7 +1,0 @@
-# Optional overlay for an external PostgreSQL server with a private CA.
-services:
-  app:
-    environment:
-      POSTGRES_SSLROOTCERT: /run/relayix/postgres-ca.crt
-    volumes:
-      - ./postgres-ca.crt:/run/relayix/postgres-ca.crt:ro

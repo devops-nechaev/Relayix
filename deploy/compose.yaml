@@ -6,13 +6,14 @@ services:
     ports:
       - '${BIND_ADDRESS:-0.0.0.0}:${PORT:-8080}:8080'
     environment:
-      POSTGRES_HOST: db
-      POSTGRES_PORT: '5432'
+      DATABASE_MODE: ${DATABASE_MODE:-local}
+      POSTGRES_HOST: ${POSTGRES_HOST:-}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
       POSTGRES_USER: ${POSTGRES_USER:-relayix}
       POSTGRES_DB: ${POSTGRES_DB:-relayix}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
-      POSTGRES_SSLMODE: disable
-      POSTGRES_SSLROOTCERT: ''
+      POSTGRES_SSLMODE: ${POSTGRES_SSLMODE:-}
+      POSTGRES_SSLROOTCERT: ${POSTGRES_CA_PATH:+/run/relayix/postgres-ca.crt}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
       ADMIN_TOKEN: ${ADMIN_TOKEN:-}
@@ -31,15 +32,19 @@ services:
         import os
         from urllib.parse import quote, urlencode
         env = os.environ
-        host = env['POSTGRES_HOST'].strip().removeprefix('[').removesuffix(']')
+        mode = env['DATABASE_MODE']
+        if mode not in ('local', 'external'):
+            raise SystemExit('DATABASE_MODE must be local or external')
+        host = 'db' if mode == 'local' else env['POSTGRES_HOST'].strip()
+        host = host.removeprefix('[').removesuffix(']')
         if not host or any(c.isspace() or c in '/@?#\\' for c in host):
             raise SystemExit('POSTGRES_HOST must be a hostname or IP address')
-        port = int(env['POSTGRES_PORT'])
+        port = 5432 if mode == 'local' else int(env['POSTGRES_PORT'])
         if not 1 <= port <= 65535:
             raise SystemExit('POSTGRES_PORT must be between 1 and 65535')
         host = '[' + host + ']' if ':' in host else host
-        query = {'sslmode': env['POSTGRES_SSLMODE']}
-        if env.get('POSTGRES_SSLROOTCERT'):
+        query = {'sslmode': 'disable' if mode == 'local' else (env['POSTGRES_SSLMODE'] or 'verify-full')}
+        if mode == 'external' and env.get('POSTGRES_SSLROOTCERT'):
             query['sslrootcert'] = env['POSTGRES_SSLROOTCERT']
         env['DATABASE_URL'] = ('postgres://' + quote(env['POSTGRES_USER'], safe='')
             + ':' + quote(env['POSTGRES_PASSWORD'], safe='') + '@' + host + ':' + str(port)
@@ -49,10 +54,19 @@ services:
       - 'host.docker.internal:host-gateway'
     security_opt:
       - no-new-privileges:true
+    volumes:
+      - type: bind
+        source: ${POSTGRES_CA_PATH:-/dev/null}
+        target: /run/relayix/postgres-ca.crt
+        read_only: true
+        bind:
+          create_host_path: false
     depends_on:
       db:
         condition: service_healthy
+        required: false
   db:
+    profiles: [local]
     image: postgres:17.11-trixie
     restart: unless-stopped
     environment:

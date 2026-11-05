@@ -1,6 +1,6 @@
 # Run Relayix with Docker Compose
 
-Requirements: Docker Engine with Docker Compose v2. No source checkout, Python, Rust or Node.js is needed on the server. The published image includes the application and web UI.
+Requirements: Docker Engine with Docker Compose v2.20 or newer. No source checkout, Python, Rust or Node.js is needed on the server. The published image includes the application and web UI.
 
 ## Bundled PostgreSQL
 
@@ -36,18 +36,13 @@ PostgreSQL is available only inside the Compose network. Its data persists in a 
 
 Create the database and login role on your PostgreSQL server first. The role must be able to create and alter objects in that database.
 
-Download the external Compose file **as `compose.yaml`** into a new directory:
-
-```bash
-mkdir relayix && cd relayix
-curl -fL https://github.com/devops-nechaev/Relayix/releases/download/v0.6.2/compose.external.yaml -o compose.yaml
-curl -fL https://github.com/devops-nechaev/Relayix/releases/download/v0.6.2/relayix.env.example -o .env
-```
+Use the **same `compose.yaml` and `.env` downloaded above**. Set `DATABASE_MODE=external` in `.env`; no additional Compose files are needed.
 
 In `.env`, set `ADMIN_PASSWORD` and your existing database connection settings:
 
 | Setting | Example / purpose |
 | --- | --- |
+| `DATABASE_MODE` | `external` to disable the bundled PostgreSQL service |
 | `POSTGRES_HOST` | `postgres.example.org`, an IP address, or `host.docker.internal` for PostgreSQL on the Docker host |
 | `POSTGRES_PORT` | `5432` |
 | `POSTGRES_USER` | Existing database login role |
@@ -62,16 +57,26 @@ chmod 600 .env
 docker compose up -d
 ```
 
-Open `http://SERVER_IP:8080` and sign in as `admin`. This Compose file starts only Relayix; it creates no PostgreSQL container or database volume.
+Open `http://SERVER_IP:8080` and sign in as `admin`. In external mode, only Relayix starts; the bundled PostgreSQL service is disabled.
 
-For a provider with a private CA, save its certificate as `postgres-ca.crt` in the same directory, readable by container user 10001, and download the optional overlay:
+### TLS and a private CA
 
-```bash
-curl -fL https://github.com/devops-nechaev/Relayix/releases/download/v0.6.2/compose.tls.yaml -o compose.tls.yaml
-docker compose -f compose.yaml -f compose.tls.yaml up -d
+Set these values in the same `.env` file:
+
+```dotenv
+POSTGRES_SSLMODE=verify-full
+POSTGRES_CA_PATH=/srv/relayix/postgres-ca.crt
 ```
 
-Keep `POSTGRES_SSLMODE=verify-full`; the hostname must match the certificate. Use both `-f` arguments for subsequent operations with this overlay.
+`POSTGRES_CA_PATH` is the path to the CA certificate **on the Docker host**; a relative path such as `./postgres-ca.crt` also works. The file must exist and be readable by container user 10001. Compose mounts it read-only; no overlay file or extra command-line flags are needed. The database hostname must match the server certificate.
+
+Leave `POSTGRES_CA_PATH` empty to use the image's system trust store. For a LAN database configured without TLS, explicitly set `POSTGRES_SSLMODE=disable` and leave the CA path empty.
+
+Apply either configuration with:
+
+```bash
+docker compose up -d
+```
 
 ## Optional settings
 
@@ -79,6 +84,8 @@ All settings go in `.env`; no JSON generator is needed.
 
 | Setting | Default | Purpose |
 | --- | --- | --- |
+| `DATABASE_MODE` | `local` | `local` starts bundled PostgreSQL; `external` uses your existing server |
+| `POSTGRES_CA_PATH` | Empty | Optional host path to a PostgreSQL CA certificate |
 | `ADMIN_USERNAME` | `admin` | Initial administrator username |
 | `BIND_ADDRESS` | `0.0.0.0` | Listen on all host interfaces; use `127.0.0.1` for host-only access |
 | `PORT` | `8080` | Web UI and webhook port on the Docker host |
@@ -91,6 +98,17 @@ All settings go in `.env`; no JSON generator is needed.
 `ADMIN_PASSWORD` bootstraps a new account. Change an existing account's password in the UI. Changing `POSTGRES_PASSWORD` in `.env` does not change the password in an initialized PostgreSQL database.
 
 The `.env` file contains credentials. Keep it on the deployment host and outside source control. The repository ignores `.env` files; the downloadable template contains no credentials.
+
+## Existing installations using the previous standalone files
+
+Replace your downloaded `compose.yaml` with the current release download and keep your existing `.env`, passwords and project directory. Add these lines to `.env`:
+
+```dotenv
+DATABASE_MODE=local
+COMPOSE_PROFILES=${DATABASE_MODE}
+```
+
+For an existing external database, use `DATABASE_MODE=external` and retain its connection settings. Replace the former TLS overlay with `POSTGRES_CA_PATH` in `.env`. Then run `docker compose up -d` with no `-f` flags. The bundled database keeps its existing named volume. Switching database locations does not copy data between them.
 
 ## Updating
 
