@@ -2,14 +2,22 @@ name: Release Docker image
 on:
   push:
     tags: ['v[0-9]*.[0-9]*.[0-9]*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Existing numeric version tag, for example 0.6.2
+        required: true
+        type: string
 permissions:
   contents: read
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ inputs.version || github.ref_name }}
   cancel-in-progress: false
 jobs:
   verify:
     uses: ./.github/workflows/check.yml
+    with:
+      source_ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/v{0}', inputs.version) || github.ref }}
     permissions:
       contents: read
   publish:
@@ -23,13 +31,15 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/v{0}', inputs.version) || github.ref }}
       - name: Validate version and determine image
         id: release
         env:
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', inputs.version) || github.ref_name }}
           REPOSITORY: ${{ github.repository }}
         run: |
           python3 scripts/check_release.py
+          printf 'revision=%s\n' "$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           python3 - <<'PY'
           import json, os, re, tomllib
           from pathlib import Path
@@ -58,7 +68,7 @@ jobs:
             ${{ steps.release.outputs.image }}:beta
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.revision=${{ steps.release.outputs.revision }}
             org.opencontainers.image.version=${{ steps.release.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

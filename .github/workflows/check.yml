@@ -5,6 +5,11 @@ on:
   pull_request:
   workflow_dispatch:
   workflow_call:
+    inputs:
+      source_ref:
+        description: Git ref to verify
+        required: false
+        type: string
 permissions:
   contents: read
 concurrency:
@@ -22,6 +27,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
+          ref: ${{ inputs.source_ref || github.ref }}
       - name: Check private paths and credential patterns
         run: |
           python3 scripts/check_secrets.py
