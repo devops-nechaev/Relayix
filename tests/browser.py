@@ -133,7 +133,7 @@ with sync_playwright() as p:
         preview = json.loads(tester.get_by_label('Test webhook JSON', exact=True).text_content())
         assert 'priority' not in preview and 'tags' not in preview and not submitted
         tester.get_by_role('button', name='Send test webhook', exact=True).click()
-        expect(tester.get_by_text('The event does not contain the tag required by this route.', exact=True)).to_be_visible()
+        expect(tester.get_by_role('region',name='Routing result').get_by_role('status')).to_have_text('The event does not contain the tag required by this route.')
         expect(tester.get_by_text('0 queued', exact=True)).to_be_visible()
         assert len(submitted) == 1
         tester.get_by_label('Tags (optional)', exact=True).fill('prod')
