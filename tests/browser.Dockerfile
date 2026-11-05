@@ -1,4 +1,4 @@
-FROM python:3.15.2-slim-trixie
+FROM python:3.16.0a1-slim-trixie
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 RUN apt-get update && apt-get upgrade -y --no-install-recommends \
     && pip install --disable-pip-version-check --no-cache-dir playwright==1.64.1 \
