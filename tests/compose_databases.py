@@ -3,7 +3,7 @@ from pathlib import Path
 from urllib.request import build_opener,ProxyHandler,Request
 import json,os,secrets,socket,subprocess,sys,tempfile,time
 ROOT=Path(__file__).resolve().parents[1]
-IMAGE=os.environ.get('RELAYIX_TEST_IMAGE','relayix:0.6.2')
+IMAGE=os.environ.get('RELAYIX_TEST_IMAGE','relayix:0.6.3')
 PG_IMAGE='postgres:17.11-trixie'
 
 def free_port():
@@ -71,9 +71,9 @@ def exercise(mode,folder):
   # Compose may emit one JSON object per line rather than an array.
   services={row['Service'] for row in rows}
   assert services==({'app','db'} if mode=='local' else {'app'}),services
-  query=compose(['run','--rm','--no-deps','-T','db-tools','psql','-X','-Atc','SELECT current_database() || chr(58) || current_user;'])
+  query=subprocess.run([sys.executable,str(ROOT/'scripts/database.py'),'psql','-X','-Atc','SELECT current_database() || chr(58) || current_user;'],cwd=ROOT,env=env,capture_output=True,check=True)
   assert query.stdout.strip()==b'relayix:relayix'
-  dump=compose(['run','--rm','--no-deps','-T','db-tools','pg_dump','-Fc'])
+  dump=subprocess.run([sys.executable,str(ROOT/'scripts/database.py'),'pg_dump','-Fc'],cwd=ROOT,env=env,capture_output=True,check=True)
   assert dump.stdout.startswith(b'PGDMP')
   print('PASS: '+mode+' startup, authenticated API, expected services, special-character DB password, SQL client and pg_dump',flush=True)
  finally:

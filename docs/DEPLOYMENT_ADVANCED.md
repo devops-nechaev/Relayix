@@ -6,7 +6,7 @@ Set application and database variables in **one private file**:
 ../private/relayix-config/deployment.json
 ```
 
-The path is relative to the repository directory. `scripts/write_config.py` creates this file with private permissions. Use JSON strings for every value, including ports and booleans. No `.env` file is required. The application image is selected separately in **`compose.app.yaml`**.
+The path is relative to the repository directory. `scripts/write_config.py` creates this file with private permissions. Use JSON strings for every value, including ports and booleans. No `.env` file is required. The application image is selected separately in **`compose.yaml`**.
 
 ## 1. Download the image
 
@@ -16,7 +16,7 @@ Install Git, Docker Engine with Docker Compose v2, and Python 3.10+. Your user m
 git clone https://github.com/devops-nechaev/Relayix.git
 cd Relayix
 docker compose version
-docker pull ghcr.io/devops-nechaev/relayix:0.6.2
+docker pull ghcr.io/devops-nechaev/relayix:0.6.3
 ```
 
 This guide is for existing installations and automated deployments that use the private JSON wrapper. New users should follow the [standard Docker Compose setup](DEPLOYMENT.md). The published image is ready to run; source compilation is only needed for development.
@@ -27,7 +27,7 @@ This guide is for existing installations and automated deployments that use the 
 | --- | --- | --- |
 | New PostgreSQL database inside Compose | `local` | `app` and `db`, with persistent database storage |
 | Existing PostgreSQL on another server | `external` | `app` only |
-| Existing PostgreSQL on the Docker host | `external` | `app` only; use `host.docker.internal` |
+| Existing PostgreSQL on the Docker host | `external` | `app` only; use the Docker host's LAN IP |
 
 ### Option A: PostgreSQL inside Compose
 
@@ -99,7 +99,7 @@ If your provider supplies a CA certificate, save its public certificate on the D
 }
 ```
 
-The certificate file must be readable by the container user. The wrapper mounts it read-only into the app and database tools. With `verify-full`, `POSTGRES_HOST` must match the server certificate. Without a custom CA file, the clients use their trusted root certificates.
+The certificate file must be readable by the container user. The wrapper mounts it read-only into the app and the explicitly requested database client. With `verify-full`, `POSTGRES_HOST` must match the server certificate. Without a custom CA file, the clients use their trusted root certificates.
 
 `verify-full` verifies TLS and the server name. For a server deliberately configured without TLS on a trusted network, explicitly set `POSTGRES_SSLMODE=disable`. Other supported values are `require`, `verify-ca`, `prefer` and `allow`; `verify-ca` requires a CA file. `require` encrypts traffic but does not verify the server name. See [PostgreSQL TLS modes](https://www.postgresql.org/docs/17/libpq-ssl.html).
 
@@ -121,12 +121,12 @@ Use external mode with these values:
 ```json
 {
   "DATABASE_MODE": "external",
-  "POSTGRES_HOST": "host.docker.internal",
+  "POSTGRES_HOST": "192.0.2.10",
   "POSTGRES_PORT": "5432"
 }
 ```
 
-`localhost` inside a container refers to that container. `host.docker.internal` addresses the Docker host; the Compose files add `host-gateway` support on Linux.
+`localhost` inside a container refers to that container. To reach PostgreSQL installed on the Docker host, set `POSTGRES_HOST` to that host's LAN IP address.
 
 The host database must listen on an interface reachable from Docker. Its `pg_hba.conf` and firewall must allow the database role and Docker subnet. A PostgreSQL server listening only on `127.0.0.1` cannot accept this connection. Select TLS settings to match the server configuration.
 
@@ -135,7 +135,7 @@ The host database must listen on an interface reachable from Docker. Its `pg_hba
 These commands work in both database modes:
 
 ```bash
-scripts/compose.sh run --rm --no-deps -T db-tools psql -X -c 'SELECT current_database(), current_user;'
+python3 scripts/database.py psql -X -c 'SELECT current_database(), current_user;'
 ```
 
 Create a database backup:
@@ -144,10 +144,10 @@ Create a database backup:
 mkdir -p ../private/relayix-backups
 chmod 700 ../private/relayix-backups
 umask 077
-scripts/compose.sh run --rm --no-deps -T db-tools pg_dump -Fc > "../private/relayix-backups/manual-$(date +%Y%m%d-%H%M%S).dump"
+python3 scripts/database.py pg_dump -Fc > "../private/relayix-backups/manual-$(date +%Y%m%d-%H%M%S).dump"
 ```
 
-`db-tools` is a one-off client in the `tools` profile; ordinary `up -d` does not start it. It uses the same connection and TLS settings as the app. Its default PostgreSQL client version is 17.11. For a newer server, set a matching or newer `POSTGRES_CLIENT_IMAGE`, such as `postgres:18.6-trixie` for PostgreSQL 18. `pg_dump` cannot dump a server with a newer major version than its own.
+The database helper runs an ephemeral PostgreSQL client only when you explicitly request a SQL command or backup. Compose contains only the app and optional database services. It uses the same connection and TLS settings as the app. Its default PostgreSQL client version is 17.11. For a newer server, set a matching or newer `POSTGRES_CLIENT_IMAGE`, such as `postgres:18.6-trixie` for PostgreSQL 18. `pg_dump` cannot dump a server with a newer major version than its own.
 
 ## Settings reference
 
@@ -178,14 +178,14 @@ scripts/compose.sh up -d
 
 ## Updating
 
-Change the app image tag in `compose.app.yaml`, then run:
+Change the app image tag in `compose.yaml`, then run:
 
 ```bash
 scripts/compose.sh pull app
 scripts/compose.sh up -d --no-deps app
 ```
 
-Database migrations run automatically. Keep the same database settings and data volume.
+Database migrations run automatically. Keep the same database settings and data volume. When adopting the named containers and network in 0.6.3 for the first time, run `scripts/compose.sh up -d` once to apply those Compose changes to both services.
 
 ## Common operations
 

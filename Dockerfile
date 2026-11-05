@@ -27,6 +27,6 @@ COPY LICENSE NOTICE THIRD_PARTY_NOTICES.md /usr/share/doc/relayix/
 COPY LICENSES /usr/share/doc/relayix/licenses/
 WORKDIR /app
 USER 10001
-LABEL org.opencontainers.image.title="Relayix" org.opencontainers.image.version="0.6.2" org.opencontainers.image.licenses="Apache-2.0"
+LABEL org.opencontainers.image.title="Relayix" org.opencontainers.image.version="0.6.3" org.opencontainers.image.licenses="Apache-2.0"
 EXPOSE 8080
 CMD ["/usr/local/bin/relayix"]

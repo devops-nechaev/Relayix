@@ -1,22 +1,52 @@
+name: relayix
 services:
   app:
-    extends:
-      file: compose.app.yaml
-      service: app
+    container_name: ${COMPOSE_PROJECT_NAME:-relayix}-app
+    image: ${RELAYIX_IMAGE_OVERRIDE:-ghcr.io/devops-nechaev/relayix:0.6.3}
+    restart: unless-stopped
+    networks: [default]
+    ports:
+      - '${BIND_ADDRESS:-0.0.0.0}:${PORT:-8080}:8080'
+    environment:
+      DATABASE_URL: ${RELAYIX_DATABASE_URL:-}
+      DATABASE_MODE: ${DATABASE_MODE:-local}
+      POSTGRES_HOST: ${POSTGRES_HOST:-}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_USER: ${POSTGRES_USER:-relayix}
+      POSTGRES_DB: ${POSTGRES_DB:-relayix}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_SSLMODE: ${POSTGRES_SSLMODE:-}
+      POSTGRES_SSLROOTCERT: ${POSTGRES_CA_PATH:+/run/relayix/postgres-ca.crt}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      TELEGRAM_API_ID: ${TELEGRAM_API_ID:-}
+      TELEGRAM_API_HASH: ${TELEGRAM_API_HASH:-}
+      ALLOW_INSECURE_HTTP: ${ALLOW_INSECURE_HTTP:-false}
+      RUST_LOG: ${RUST_LOG:-relayix=info}
+      PORT: '8080'
+    volumes:
+      - type: bind
+        source: ${POSTGRES_CA_PATH:-/dev/null}
+        target: /run/relayix/postgres-ca.crt
+        read_only: true
+        bind:
+          create_host_path: false
     depends_on:
       db:
         condition: service_healthy
-  db-tools:
-    extends:
-      file: compose.app.yaml
-      service: db-tools
+        required: false
   db:
+    container_name: ${COMPOSE_PROJECT_NAME:-relayix}-db
+    networks: [default]
+    profiles: [local]
     image: ${POSTGRES_IMAGE:-postgres:17.11-trixie}
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-relayix}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB:-relayix}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     volumes:
       - db_data:/var/lib/postgresql/data
     healthcheck:
@@ -27,3 +57,6 @@ services:
 volumes:
   db_data:
     name: ${RELAYIX_DB_VOLUME:-${COMPOSE_PROJECT_NAME:-relayix}_db_data}
+networks:
+  default:
+    name: ${COMPOSE_PROJECT_NAME:-relayix}-network

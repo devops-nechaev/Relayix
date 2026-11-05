@@ -5,6 +5,7 @@ mod mattermost;
 mod preferences;
 mod auth;
 mod alerts;
+mod database;
 #[cfg(test)]
 mod tests;
 use std::{env, sync::Arc, time::Duration};
@@ -322,7 +323,7 @@ async fn main()->Result<()> {
  tracing_subscriber::fmt().with_env_filter(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_|"relayix=info".into())).init();
  let admin_token=env::var("ADMIN_TOKEN").unwrap_or_default();
  if !admin_token.is_empty() && (admin_token.len()<32 || admin_token.starts_with("CHANGE_ME")) {return Err(anyhow!("Set a random ADMIN_TOKEN of at least 32 chars"));}
- let db=PgPool::connect(&env::var("DATABASE_URL")?).await?;
+ let db=PgPool::connect_with(database::options()?).await?;
  sqlx::migrate!().run(&db).await?;
  auth::bootstrap(&db).await?;
  let dummy_password_hash=Arc::new(auth::dummy_hash().await?);

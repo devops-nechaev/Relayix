@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased
+## 0.6.3 Beta — 2026-11-05
+
+- Use one root `compose.yaml` with only the application and optional PostgreSQL services. Select local/external PostgreSQL and TLS in `.env`.
+- Read database settings natively in the application; remove inline Python, mode-specific overlays and the database-tools service.
+- Name the containers `relayix-app` and `relayix-db` and their shared network `relayix-network`; preserve existing named database volumes.
+- Align the README, setup guide and downloadable release bundle with the single Compose configuration.
 
 - Preserve every byte of FakeTLS keys beginning with `dd` or `ee` when passing them to Telethon; cover both prefixes with deterministic wire tests.
 

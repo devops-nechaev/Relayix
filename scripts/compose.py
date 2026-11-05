@@ -6,7 +6,8 @@ from deployment import ROOT, compose_environment, read_config
 
 env, files = compose_environment(read_config())
 os.chdir(ROOT)
-args = ['docker', 'compose', '--project-directory', str(ROOT), '--env-file', os.devnull]
+args = ['docker', 'compose', '--project-directory', str(ROOT), '--env-file', os.devnull,
+        '--profile', env['DATABASE_MODE']]
 for path in files:
     args += ['-f', str(path)]
 # Explicit files and /dev/null disable implicit .env and COMPOSE_FILE discovery.
