@@ -14,9 +14,18 @@ from faketls import ConnectionTcpMTProxyFakeTLS, parse_secret
 logging.disable(logging.CRITICAL)
 
 
+class ConnectionTcpMTProxyPlain(connection.ConnectionTcpMTProxyAbridged):
+    @staticmethod
+    def normalize_secret(secret):
+        # A 16-byte raw key can itself begin with dd/ee; those bytes are not markers.
+        if len(secret) != 32:
+            raise ValueError('Plain MTProxy secrets must contain 16 bytes')
+        return bytes.fromhex(secret)
+
+
 def options(cfg):
     secret = cfg['proxy_secret']
-    if secret.startswith('ee'):
+    if secret.startswith('ee') and len(secret) != 32:
         parse_secret(secret)
         if cfg['proxy_type'] != 'mtproto':
             raise ValueError('WEB-proxy does not support FakeTLS')
@@ -25,7 +34,7 @@ def options(cfg):
         raise ValueError('Unsupported proxy secret')
     bytes.fromhex(secret)
     if cfg['proxy_type'] == 'mtproto':
-        mode = connection.ConnectionTcpMTProxyRandomizedIntermediate if secret.startswith('dd') else connection.ConnectionTcpMTProxyAbridged
+        mode = connection.ConnectionTcpMTProxyRandomizedIntermediate if len(secret) == 34 else ConnectionTcpMTProxyPlain
         return {'connection': mode, 'proxy': (cfg['proxy_host'].strip('[]'), int(cfg['proxy_port']), secret)}
     if cfg['proxy_type'] == 'webproxy':
         url = urlsplit('https://' + cfg['webproxy_address'].removeprefix('https://'))

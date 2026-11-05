@@ -1,6 +1,7 @@
 """Chromium checks for the Docker image against the isolated test stack."""
 from pathlib import Path
 import re
+import json
 import os
 from runtime import credentials
 import time
@@ -50,15 +51,120 @@ with sync_playwright() as p:
     failed_card = page.get_by_role('button', name=re.compile('Failed deliveries'))
     expect(failed_card).to_be_visible()
     expect(failed_card.locator('strong')).to_have_text(re.compile(r'^(?:[2-9]|[1-9][0-9]+)$'))
+    def layout_snapshot():
+        return {'scroll': page.evaluate('window.scrollY'),
+                'heading': page.locator('.page-header').bounding_box(),
+                'search': page.locator('.search-bar').bounding_box()}
+    def expect_stable_layout(before):
+        after = layout_snapshot()
+        assert abs(before['scroll'] - after['scroll']) < 1, (before, after)
+        for element in ('heading', 'search'):
+            for axis in ('x', 'y', 'width', 'height'):
+                assert abs(before[element][axis] - after[element][axis]) < 1, (element, axis, before, after)
+    refresh_layout = layout_snapshot()
     refresh()
+    expect_stable_layout(refresh_layout)
+    page.locator('.notification-stack').get_by_role('button', name='Dismiss notification').click()
+    expect_stable_layout(refresh_layout)
+    # Hold one request so the intermediate Refreshing state is measured as well.
+    pending_refresh = []
+    hold_refresh = lambda route: pending_refresh.append(route)
+    page.route('**/api/stats?*', hold_refresh)
+    with page.expect_request('**/api/stats?*'):
+        page.get_by_role('button', name='Refresh data').click()
+    expect(page.get_by_role('button', name='Refresh data')).to_be_disabled()
+    expect_stable_layout(refresh_layout)
+    for pending in pending_refresh:
+        pending.continue_()
+    page.unroute('**/api/stats?*', hold_refresh)
+    expect(page.locator('.notification-stack > .banner.notice')).to_be_visible()
+    expect_stable_layout(refresh_layout)
     expect(page.locator('.refresh-control')).to_contain_text('Updated')
     page.route('**/api/stats?*', lambda route: route.fulfill(status=500, content_type='application/json', body='{"error":"Simulated refresh failure"}'))
     page.get_by_role('button', name='Refresh data', exact=True).click()
     expect(page.get_by_role('alert')).to_contain_text('Simulated refresh failure')
+    expect_stable_layout(refresh_layout)
     page.unroute('**/api/stats?*')
     expect(page.get_by_role('button', name='Refresh data', exact=True)).to_be_enabled()
     refresh()
     expect(page.get_by_role('alert')).to_have_count(0)
+    # Empty inputs receive keyboard focus immediately at the user's 150% scale.
+    scaled = browser.new_page(viewport={'width': 1280, 'height': 1000}, device_scale_factor=1.5,
+                              storage_state=page.context.storage_state())
+    scaled.goto(BASE)
+    expect(scaled.get_by_role('heading', name='Dashboard', exact=True)).to_be_visible()
+    scaled.get_by_role('button', name='Channels', exact=True).click()
+    add_channel = scaled.get_by_role('button', name='Add Channel', exact=True)
+    add_channel.click()
+    name_input = scaled.get_by_role('dialog').get_by_label('Name', exact=True)
+    expect(name_input).to_be_focused()
+    assert name_input.evaluate('e => e.selectionStart === 0 && e.selectionEnd === 0')
+    name_input.press('R')
+    expect(name_input).to_have_value('R')
+    scaled.screenshot(path=str(OUT / 'channel-input-focused-150.png'), caret='initial')
+    scaled.get_by_role('button', name='Close dialog', exact=True).click()
+    expect(add_channel).to_be_focused()
+    scaled.close()
+    # The route tester copies JSON without sending, then uses the real queue.
+    fixture_channels = []
+    fixture_route = None
+    try:
+        for index in (1, 2):
+            response = page.request.post(BASE + '/api/channels', headers=auth, data={
+                'name': 'Browser routing receiver ' + str(index), 'kind': 'webhook',
+                'config': {'url': 'http://mock:8000/browser-routing-' + str(index)}, 'enabled': True})
+            assert response.ok
+            fixture_channels.append(response.json()['id'])
+        response = page.request.post(BASE + '/api/routes', headers=auth, data={
+            'name': 'Browser webhook tester', 'channel_ids': fixture_channels, 'required_tag': 'prod', 'min_priority': 1})
+        assert response.ok
+        fixture_route = response.json()
+        page.get_by_role('button', name='Routes', exact=True).click()
+        page.get_by_role('button', name='Test webhook Browser webhook tester', exact=True).click()
+        tester = page.get_by_role('dialog', name='Test webhook', exact=True)
+        expect(tester.get_by_label('Test title', exact=True)).to_be_focused()
+        tester.get_by_label('Test title', exact=True).fill('Browser route test')
+        tester.get_by_label('Priority (optional)', exact=True).fill('')
+        submitted = []
+        observe_test = lambda request: submitted.append(request) if request.url.endswith('/api/routes/' + fixture_route['id'] + '/test') else None
+        page.on('request', observe_test)
+        tester.get_by_role('button', name='Copy test JSON', exact=True).click()
+        expect(tester.get_by_text('Test JSON copied', exact=True)).to_be_visible()
+        preview = json.loads(tester.get_by_label('Test webhook JSON', exact=True).text_content())
+        assert 'priority' not in preview and 'tags' not in preview and not submitted
+        tester.get_by_role('button', name='Send test webhook', exact=True).click()
+        expect(tester.get_by_role('region',name='Routing result').get_by_role('status')).to_have_text('Accepted and queued for delivery.')
+        expect(tester.get_by_text('2 queued', exact=True)).to_be_visible()
+        assert len(submitted) == 1
+        tester.get_by_label('Tags (optional)', exact=True).fill('different')
+        tester.get_by_role('button', name='Send test webhook', exact=True).click()
+        expect(tester.get_by_text('2 queued', exact=True)).to_be_visible()
+        assert len(submitted) == 2
+        assert fixture_route['token'] not in tester.inner_text()
+        page.remove_listener('request', observe_test)
+        for _ in range(100):
+            rows = page.request.get(BASE + '/api/deliveries?route_id=' + fixture_route['id'], headers=auth).json()['items']
+            if len(rows) == 4 and all(row['status'] == 'sent' for row in rows):
+                break
+            page.wait_for_timeout(100)
+        else:
+            raise AssertionError('Route test did not reach both local webhook receivers')
+        tester.get_by_role('button', name='View test deliveries', exact=True).click()
+        expect(page.get_by_label('Route', exact=True)).to_have_value(fixture_route['id'])
+        expect(page.locator('.delivery-title').filter(has_text='Browser route test')).to_have_count(4)
+        page.get_by_label('Tag',exact=True).fill('prod')
+        page.get_by_role('button',name='Apply filters',exact=True).click()
+        expect(page.locator('.delivery-title').filter(has_text='Browser route test')).to_have_count(4)
+        page.get_by_role('button', name='Reset filters', exact=True).click()
+    finally:
+        if fixture_route:
+            page.request.delete(BASE + '/api/routes/' + fixture_route['id'], headers=auth)
+        for identifier in fixture_channels:
+            page.request.delete(BASE + '/api/channels/' + identifier, headers=auth)
+    page.get_by_role('button', name='Dashboard', exact=True).click()
+    expect(page.get_by_role('heading', name='Dashboard', exact=True)).to_be_visible()
+    print('PASS: route tester copies optional-field JSON without sending, keeps route tags UI-only, queues real notifications and opens delivery results')
+    print('PASS: refresh keeps page/header/scroll stable through loading, success, dismissal and errors; channel input owns focus and typing at 150% scale')
     for theme in ['Dark', 'Light']:
         page.get_by_role('button', name=theme, exact=True).click()
         page.screenshot(path=str(OUT / f'dashboard-{theme.lower()}.png'), full_page=True)
@@ -182,8 +288,20 @@ with sync_playwright() as p:
     assert saved.value.ok
     expect(page.get_by_text('Settings saved to your account', exact=True)).to_be_visible()
     page.wait_for_timeout(600)
-    with page.expect_response(lambda r: '/api/stats' in r.url, timeout=8000):
+    expect(page.get_by_role('button', name='Refresh data')).to_be_enabled()
+    automatic_layout = layout_snapshot()
+    pending_automatic = []
+    hold_automatic = lambda route: pending_automatic.append(route)
+    page.route('**/api/stats?*', hold_automatic)
+    with page.expect_request('**/api/stats?*', timeout=8000):
         page.wait_for_timeout(5600)
+    expect(page.get_by_role('button', name='Refresh data')).to_be_disabled()
+    expect_stable_layout(automatic_layout)
+    for pending in pending_automatic:
+        pending.continue_()
+    page.unroute('**/api/stats?*', hold_automatic)
+    expect(page.get_by_role('button', name='Refresh data')).to_be_enabled()
+    expect_stable_layout(automatic_layout)
     interval.fill('0')
     with page.expect_response(lambda r: '/api/auth/preferences' in r.url):
         page.get_by_role('button', name='Save settings', exact=True).click()
@@ -197,7 +315,7 @@ with sync_playwright() as p:
     refresh()
     page.route('**/api/auth/preferences', lambda route: route.fulfill(status=500, content_type='application/json', body='{"error":"Simulated settings failure"}'))
     page.locator('header').get_by_role('button', name='Dark', exact=True).click()
-    expect(page.locator('.content > .banner.error')).to_contain_text('Simulated settings failure')
+    expect(page.locator('.notification-stack > .banner.error')).to_contain_text('Simulated settings failure')
     page.unroute('**/api/auth/preferences')
     page.get_by_role('button', name='Retry saving settings', exact=True).click()
     expect(page.get_by_text('Settings saved to your account', exact=True)).to_be_visible()
@@ -210,7 +328,7 @@ with sync_playwright() as p:
     expect(dialog.get_by_label('Route slug', exact=True)).to_have_count(0)
     route_name = 'Release notifications with a deliberately long readable endpoint'
     dialog.get_by_label('Name', exact=True).fill(route_name)
-    dialog.get_by_label('Tag (optional)', exact=True).fill('deploy')
+    dialog.get_by_label('Tag (UI only)', exact=True).fill('deploy')
     dialog.get_by_role('group', name='Recipients', exact=True).get_by_label('webhook', exact=True).check()
     with page.expect_response(lambda r: r.url.endswith('/api/routes') and r.request.method == 'POST') as created:
         dialog.get_by_role('button', name='Save', exact=True).click()
@@ -344,7 +462,8 @@ with sync_playwright() as p:
     route_row.get_by_role('button', name='Integration guide', exact=True).click()
     guide = page.get_by_role('dialog', name='Route integration guide', exact=True)
     expect(guide).to_contain_text('X-Relay-Key: YOUR_ROUTE_KEY')
-    expect(guide.locator('pre')).to_contain_text('"tags":["deploy"]')
+    expect(guide.locator('pre')).not_to_contain_text('"tags"')
+    expect(guide).to_contain_text('UI only')
     expect(guide.locator('pre')).to_contain_text(full_endpoint)
     guide.get_by_role('button', name='Copy example', exact=True).click()
     expect(guide.get_by_role('status')).to_contain_text('Example copied')
@@ -388,16 +507,16 @@ with sync_playwright() as p:
     timeout = page.get_by_label('Notification auto-close (seconds)', exact=True)
     timeout.fill('2')
     page.get_by_role('button', name='Save notification preferences', exact=True).click()
-    expect(page.locator('.content > .banner.notice')).to_contain_text('Notification preferences saved')
+    expect(page.locator('.notification-stack > .banner.notice')).to_contain_text('Notification preferences saved')
     page.mouse.move(0, 0)
-    expect(page.locator('.content > .banner.notice')).to_have_count(0, timeout=5000)
+    expect(page.locator('.notification-stack > .banner.notice')).to_have_count(0, timeout=5000)
     page.reload()
     page.get_by_role('button', name='Account menu').click()
     page.locator('.profile-dropdown').get_by_role('button', name='My profile', exact=True).click()
     expect(timeout).to_have_value('2')
     timeout.fill('0')
     page.get_by_role('button', name='Save notification preferences', exact=True).click()
-    notice = page.locator('.content > .banner.notice')
+    notice = page.locator('.notification-stack > .banner.notice')
     expect(notice).to_be_visible()
     page.wait_for_timeout(2300)
     expect(notice).to_be_visible()
@@ -405,7 +524,7 @@ with sync_playwright() as p:
     expect(notice).to_have_count(0)
     page.route('**/api/stats?*', lambda route: route.fulfill(status=500, content_type='application/json', body='{"error":"Dismissible refresh error"}'))
     page.get_by_role('button', name='Refresh data', exact=True).click()
-    error_banner = page.locator('.content > .banner.error')
+    error_banner = page.locator('.notification-stack > .banner.error')
     expect(error_banner).to_contain_text('Dismissible refresh error')
     error_banner.get_by_role('button', name='Dismiss error', exact=True).click()
     expect(error_banner).to_have_count(0)

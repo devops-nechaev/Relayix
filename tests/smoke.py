@@ -60,7 +60,7 @@ def main():
     api = Client(TOKEN)
     for _ in range(90):
         try:
-            if api.ok('/healthz')['version'] == '0.6.3':
+            if api.ok('/healthz')['version'] == '0.6.4':
                 break
         except (URLError, AssertionError):
             time.sleep(1)
@@ -318,6 +318,8 @@ def main():
     assert admin.request('/api/auth/preferences', {**preferences, 'dashboard_period': 'invalid'}, 'PUT')[0] == 400
     admin.ok('/api/auth/preferences', preferences, 'PUT')
     print('PASS: all seven dashboard periods against historical database rows, matching history windows, period validation and account persistence', flush=True)
+    from routing import verify
+    verify(api, Client())
     print('All smoke tests passed.', flush=True)
 
 

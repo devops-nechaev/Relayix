@@ -1,4 +1,4 @@
-# Relayix 0.6.3 Beta
+# Relayix 0.6.4 Beta
 
 A self-hosted notification hub: Rust / Axum / React / PostgreSQL. English interface, light and dark themes.
 
@@ -131,7 +131,9 @@ Secret fields are masked in channel responses, and unchanged masked values are p
 
 ### Tags
 
-A route's **Required tag** limits delivery to incoming events that contain that exact tag. It is displayed as a tag badge and can be used to filter Routes. Event tags appear in the Deliveries table; click a tag or use the Tag filter to show matching deliveries. Tag matching is exact. Suggested tags include route requirements and historical event tags. Route requirements and actual event tags are separate: setting a route requirement does not add a tag to an incoming event.
+A route's **Tag (UI only)** groups routes and their delivery history in the interface. It never limits webhook delivery. Message `tags` are also optional UI metadata. Delivery tag filters match either the route's label or the message's tags; matching is exact. Route labels and message tags are displayed together, while the original message tags remain unchanged.
+
+The legacy route API/database field `required_tag` is retained for compatibility and now stores this UI label only. Sending decisions use route enabled state, minimum priority and enabled recipient bindings.
 
 ### Send an event
 
@@ -141,6 +143,18 @@ curl --fail-with-body -X POST http://192.168.39.110:8080/h/gitlab-deploy \
   -H 'Content-Type: application/json' \
   -d '{"title":"Deployment successful","message":"auth deployed to production","priority":3,"tags":["deploy"]}'
 ```
+
+This minimal body uses the default priority of 3 and omits message tags:
+
+```json
+{"title":"GitLab CI Tests","message":"Tests completed"}
+```
+
+Both `priority` and `tags` are optional. An omitted priority defaults to **3**; omitted or null tags become an empty array. Route tags and message tags do not affect delivery; only the configured minimum priority and enabled route/recipients apply.
+
+Every accepted webhook returns `event_id`, `queued` and `routing`. Routing diagnostics identify the route, configured filters, linked/active recipients and why each recipient was queued or excluded. A zero queue count reports `priority_below_minimum`, `no_destinations` or `no_active_destinations`. An authenticated request to a disabled route returns HTTP 403 with `route_disabled`. Service logs correlate decisions by event/route/channel ID without logging credentials or message bodies.
+
+Use **Routes → Test webhook** to copy an example JSON or send a real event through the same routing/queue code. Priority and comma-separated tags may be left empty. The result explains priority/recipient decisions and links to Deliveries for the actual send outcome. Copying JSON does not send an event.
 
 A successful response confirms queuing, not delivery. Check Deliveries for the result. The PostgreSQL worker uses row locking, stale-worker recovery and five attempts with exponential backoff; delivery is at least once.
 
@@ -186,6 +200,7 @@ Use an authenticated browser session plus `X-Relay-Client: web`, or `Authorizati
 | GET / POST | `/api/routes` | List/create routes |
 | PUT / DELETE | `/api/routes/{id}` | Edit/delete route |
 | POST | `/api/routes/{id}/rotate` | Rotate route key |
+| POST | `/api/routes/{id}/test` | Send a real test event through route filters and return routing diagnostics; authenticated users only |
 | GET | `/api/stats` | Delivery and failure counters |
 | GET | `/api/deliveries` | `{items,total,page,page_size}` with filters |
 | POST | `/api/deliveries/{id}/retry` | Retry failed/retrying delivery |

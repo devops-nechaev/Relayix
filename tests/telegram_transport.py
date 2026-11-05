@@ -12,7 +12,13 @@ module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
 cfg={'proxy_type':'mtproto','proxy_host':'proxy.example.org','proxy_port':'443','proxy_secret':'dd'+secrets.token_hex(16),
      'api_id':'12345','api_hash':secrets.token_hex(16),'bot_token':secrets.token_urlsafe(32),'chat_id':'@fixture','message_thread_id':'42'}
 assert module.options(cfg)['connection'] is connection.ConnectionTcpMTProxyRandomizedIntermediate
-assert module.options({**cfg,'proxy_secret':secrets.token_hex(16)})['connection'] is connection.ConnectionTcpMTProxyAbridged
+for prefix in ('01','dd','ee'):
+    plain=prefix+secrets.token_hex(15)
+    selected=module.options({**cfg,'proxy_secret':plain})['connection']
+    assert selected is module.ConnectionTcpMTProxyPlain
+    assert issubclass(selected,connection.ConnectionTcpMTProxyAbridged)
+    assert selected.normalize_secret(plain)==bytes.fromhex(plain)
+    assert module.options({**cfg,'proxy_type':'webproxy','proxy_secret':plain,'webproxy_address':'proxy.example.org'})['connection'] is ConnectionWebProxy
 assert module.options({**cfg,'proxy_type':'webproxy','webproxy_address':'https://PROXY.example.org'})['connection'] is ConnectionWebProxy
 assert module.destination({**cfg,'chat_id':'-1000000000123','chat_access_hash':'456'})==types.InputPeerChannel(123,0)
 assert module.destination({**cfg,'chat_id':'79419177'})==types.InputPeerUser(79419177,0)

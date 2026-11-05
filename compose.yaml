@@ -2,7 +2,7 @@ name: relayix
 services:
   app:
     container_name: ${COMPOSE_PROJECT_NAME:-relayix}-app
-    image: ${RELAYIX_IMAGE_OVERRIDE:-ghcr.io/devops-nechaev/relayix:0.6.3}
+    image: ${RELAYIX_IMAGE_OVERRIDE:-ghcr.io/devops-nechaev/relayix:0.6.4}
     restart: unless-stopped
     networks: [default]
     ports:
