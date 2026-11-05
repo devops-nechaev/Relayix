@@ -132,6 +132,12 @@ with sync_playwright() as p:
         expect(tester.get_by_text('Test JSON copied', exact=True)).to_be_visible()
         preview = json.loads(tester.get_by_label('Test webhook JSON', exact=True).text_content())
         assert 'priority' not in preview and 'tags' not in preview and not submitted
+        with page.expect_response(lambda r: r.url.endswith('/preview')) as previewed:
+            tester.get_by_role('button', name='Preview routing', exact=True).click()
+        assert previewed.value.json()['would_queue'] == 2
+        expect(tester.get_by_text('2 would queue · 0 sent', exact=True)).to_be_visible()
+        assert not submitted
+        assert page.request.get(BASE + '/api/events?route_id=' + fixture_route['id'], headers=auth).json()['total'] == 0
         tester.get_by_role('button', name='Send test webhook', exact=True).click()
         expect(tester.get_by_role('region',name='Routing result').get_by_role('status')).to_have_text('Accepted and queued for delivery.')
         expect(tester.get_by_text('2 queued', exact=True)).to_be_visible()
@@ -156,6 +162,32 @@ with sync_playwright() as p:
         page.get_by_role('button',name='Apply filters',exact=True).click()
         expect(page.locator('.delivery-title').filter(has_text='Browser route test')).to_have_count(4)
         page.get_by_role('button', name='Reset filters', exact=True).click()
+        page.get_by_role('button', name='View attempts ' + rows[0]['id'], exact=True).click()
+        attempts_dialog = page.get_by_role('dialog', name='Delivery attempts', exact=True)
+        expect(attempts_dialog.get_by_text('Attempt 1 · sent', exact=True)).to_be_visible()
+        expect(attempts_dialog.get_by_role('button', name='Retry delivery', exact=True)).to_have_count(0)
+        attempts_dialog.get_by_role('button', name='Close dialog', exact=True).click()
+        page.get_by_role('button', name='Incoming webhooks', exact=True).click()
+        page.get_by_label('Route', exact=True).select_option(fixture_route['id'])
+        page.get_by_label('Search events', exact=True).fill('Browser route test')
+        expect(page.locator('tbody tr')).to_have_count(2)
+        page.locator('tbody tr').first.get_by_role('button', name='View deliveries', exact=True).click()
+        expect(page.get_by_role('heading', name='Deliveries', exact=True)).to_be_visible()
+        expect(page.locator('.delivery-title').filter(has_text='Browser route test')).to_have_count(2)
+        expect(page.locator('.filter-actions')).to_contain_text('Event:')
+        page.get_by_role('button', name='Reset filters', exact=True).click()
+        diagnostic = page.request.post(BASE + '/api/channels', headers=auth, data={
+            'name':'Browser diagnostics','kind':'telegram','config':{'bot_token':credentials['telegram_token'],'chat_id':'-123','proxy_type':'http','proxy_host':'proxy','proxy_port':3128}})
+        assert diagnostic.ok
+        fixture_channels.append(diagnostic.json()['id'])
+        page.get_by_role('button', name='Channels', exact=True).click()
+        diagnostic_card=page.locator('.channel-card').filter(has=page.get_by_text('Browser diagnostics', exact=True))
+        diagnostic_card.get_by_role('button', name='Diagnose', exact=True).click()
+        diagnostic_dialog=page.get_by_role('dialog', name='Channel diagnostics', exact=True)
+        diagnostic_dialog.get_by_role('button', name='Run diagnostics', exact=True).click()
+        expect(diagnostic_dialog.get_by_text('transport · failed', exact=True)).to_be_visible()
+        assert credentials['telegram_token'] not in diagnostic_dialog.inner_text()
+        diagnostic_dialog.get_by_role('button', name='Close dialog', exact=True).click()
     finally:
         if fixture_route:
             page.request.delete(BASE + '/api/routes/' + fixture_route['id'], headers=auth)
@@ -271,7 +303,7 @@ with sync_playwright() as p:
     page.screenshot(path=str(OUT / 'delivery-filters.png'), full_page=True)
     filter_form.get_by_role('button', name='Reset filters', exact=True).click()
     expect(filter_form.get_by_label('Status', exact=True)).to_have_value('')
-    for name in ['Dashboard', 'Deliveries', 'Failure alerts', 'Users']:
+    for name in ['Dashboard', 'Incoming webhooks', 'Deliveries', 'Failure alerts', 'Users']:
         page.set_viewport_size({'width': 390, 'height': 844})
         page.get_by_role('button', name=name, exact=True).click()
         page.wait_for_timeout(250)
@@ -347,9 +379,12 @@ with sync_playwright() as p:
     expect(row).to_contain_text('deploy')
     row.get_by_role('button', name='Edit route ' + route_name, exact=True).click()
     dialog.get_by_label('Name', exact=True).fill('Updated Beta route')
+    dialog.get_by_role('group', name='Fallback recipients (optional)', exact=True).get_by_label('ntfy', exact=True).check()
     expect(dialog.locator('.endpoint')).to_have_text(full_endpoint)
     dialog.get_by_role('button', name='Save', exact=True).click()
     expect(dialog).not_to_be_visible()
+    saved_route=next(r for r in page.request.get(BASE+'/api/routes',headers=auth).json() if r['id']==created_route['id'])
+    assert len(saved_route['fallback_channel_ids'])==1 and saved_route['fallback_channel_ids'][0] not in saved_route['channels']
     page.get_by_label('Filter routes by tag', exact=True).select_option('deploy')
     expect(page.locator('.route-row')).to_have_count(1)
     page.reload()

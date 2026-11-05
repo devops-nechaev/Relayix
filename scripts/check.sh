@@ -3,9 +3,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 export RELAYIX_TEST_PROJECT="${RELAYIX_TEST_PROJECT:-relayix-test-${GITHUB_RUN_ID:-local}-$$}"
 [[ "$RELAYIX_TEST_PROJECT" == relayix-test-* ]] || { echo 'Test project must start with relayix-test-' >&2; exit 1; }
-export RELAYIX_TEST_IMAGE="${RELAYIX_TEST_IMAGE:-relayix:0.6.4}"
-export RELAYIX_TEST_CHECKS_IMAGE="${RELAYIX_TEST_CHECKS_IMAGE:-relayix-checks:0.6.4}"
-export RELAYIX_TEST_BROWSER_IMAGE="${RELAYIX_TEST_BROWSER_IMAGE:-relayix-browser:0.6.4}"
+export RELAYIX_TEST_IMAGE="${RELAYIX_TEST_IMAGE:-relayix:0.7.0}"
+export RELAYIX_TEST_CHECKS_IMAGE="${RELAYIX_TEST_CHECKS_IMAGE:-relayix-checks:0.7.0}"
+export RELAYIX_TEST_BROWSER_IMAGE="${RELAYIX_TEST_BROWSER_IMAGE:-relayix-browser:0.7.0}"
 export RELAYIX_TEST_ARTIFACTS="${RELAYIX_TEST_ARTIFACTS:-/tmp/relayix-test-artifacts}"
 mkdir -p "$RELAYIX_TEST_ARTIFACTS"
 python3 scripts/check_release.py
@@ -25,6 +25,8 @@ cleanup() {
 }
 trap cleanup EXIT
 if [[ "${1:-}" != '--skip-app-build' ]]; then docker build -t "$RELAYIX_TEST_IMAGE" .; fi
+python3 tests/startup.py
+python3 tests/upgrade.py
 python3 tests/compose_quickstart.py
 python3 tests/compose_databases.py
 docker run --rm -v "$PWD/tests:/tests:ro" --entrypoint python3 "$RELAYIX_TEST_IMAGE" /tests/telegram_transport.py

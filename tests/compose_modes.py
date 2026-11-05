@@ -15,7 +15,7 @@ with tempfile.TemporaryDirectory(prefix='relayix-compose-model-') as directory:
   assert settings['POSTGRES_PASSWORD'] not in result.stderr
   return json.loads(result.stdout)
  local=model({**config,'RELAYIX_IMAGE':'unused-legacy-image:0.6.1'})
- assert local['services']['app']['image']=='ghcr.io/devops-nechaev/relayix:0.6.4'
+ assert local['services']['app']['image']=='ghcr.io/devops-nechaev/relayix:0.7.0'
  assert set(local['services'])=={'app','db'}
  assert local['services']['app']['container_name']=='relayix-test-model-app'
  assert local['services']['db']['container_name']=='relayix-test-model-db'

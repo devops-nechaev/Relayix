@@ -48,7 +48,7 @@ fn from_settings(get: impl Fn(&str) -> Option<String>) -> Result<PgConnectOption
     if !local {
         if let Some(ca) = get("POSTGRES_SSLROOTCERT").filter(|v| !v.is_empty()) {
             if !std::path::Path::new(&ca).is_file() {
-                return Err(anyhow!("PostgreSQL CA certificate file is unavailable"));
+                return Err(anyhow!("POSTGRES_SSLROOTCERT file is unavailable; check the POSTGRES_CA_PATH mount"));
             }
             options = options.ssl_root_cert(ca);
         }
@@ -92,5 +92,22 @@ mod tests {
             let error = settings(&values).unwrap_err().to_string();
             assert!(!error.contains("test-only"));
         }
+    }
+}
+
+pub async fn connect() -> Result<sqlx::PgPool> {
+    let options=options()?;
+    match tokio::time::timeout(std::time::Duration::from_secs(15),sqlx::postgres::PgPoolOptions::new().acquire_timeout(std::time::Duration::from_secs(10)).connect_with(options)).await {
+        Ok(Ok(pool))=>Ok(pool),
+        Ok(Err(error))=>{
+            let message=if let Some(db)=error.as_database_error(){match db.code().as_deref(){
+                Some("28P01")|Some("28000")=>"PostgreSQL authentication failed; check POSTGRES_USER and POSTGRES_PASSWORD (or DATABASE_URL)",
+                Some("3D000")=>"PostgreSQL database does not exist; check POSTGRES_DB (or DATABASE_URL)",
+                _=>"PostgreSQL rejected the connection; check database access and server logs",
+            }}else if matches!(error,sqlx::Error::Tls(_)){"PostgreSQL TLS failed; check POSTGRES_SSLMODE, POSTGRES_SSLROOTCERT and certificate hostname (or DATABASE_URL)"}
+            else{"PostgreSQL connection failed; check DATABASE_MODE, POSTGRES_HOST, POSTGRES_PORT, network and TLS settings (or DATABASE_URL)"};
+            Err(anyhow!(message))
+        }
+        Err(_)=>Err(anyhow!("PostgreSQL connection timed out; check POSTGRES_HOST, POSTGRES_PORT and firewall (or DATABASE_URL)")),
     }
 }

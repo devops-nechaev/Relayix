@@ -46,3 +46,28 @@ for mode in ['mtproto','webproxy']:
     except ValueError:pass
 assert module.error_code(ConnectionError('password=do-not-print'))=='proxy'
 print('PASS: real MTProto/WEB connector selection, in-memory sessions, destination/topic mapping, bounded delivery and safe error classification')
+
+class DiagnosticClient(FakeClient):
+    async def connect(self):seen.append('connected')
+    async def sign_in(self,**kwargs):
+        assert kwargs['bot_token']==cfg['bot_token']
+        seen.append('authenticated')
+    async def get_entity(self,entity):
+        seen.append('resolved')
+        return types.InputPeerSelf()
+    async def __call__(self,request):
+        raise AssertionError('Diagnostics must not send messages')
+seen.clear()
+steps=asyncio.run(module.diagnose(data,DiagnosticClient))
+assert [s['name'] for s in steps]==['transport','credentials','destination','permissions']
+assert [s['status'] for s in steps]==['passed','passed','passed','warning']
+assert seen[-1]=='disconnected'
+for stage in ('connect','sign_in','get_entity'):
+    async def failure(self,*args,**kwargs):
+        raise ConnectionError('private-credential-must-not-leak')
+    failing=type('FailingClient',(DiagnosticClient,),{stage:failure})
+    steps=asyncio.run(module.diagnose(data,failing))
+    assert steps[-1]['status']=='failed'
+    assert steps[-1]['name']=={'connect':'transport','sign_in':'credentials','get_entity':'destination'}[stage]
+    assert 'private-credential' not in str(steps)
+print('PASS: Telegram diagnostics report individual stages without sending and redact provider exceptions')
