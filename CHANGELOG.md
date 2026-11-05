@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Preserve every byte of FakeTLS keys beginning with `dd` or `ee` when passing them to Telethon; cover both prefixes with deterministic wire tests.
+
 ## 0.6.2 Beta — 2026-11-05
 
 - Distribute standalone Compose files and a blank environment template with the release: download, set two passwords and run `docker compose up -d`; no source build or host Python is needed.

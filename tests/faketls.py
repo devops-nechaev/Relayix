@@ -4,8 +4,8 @@ sys.path.insert(0,'/app/transport')
 from collections import defaultdict
 from faketls import ConnectionTcpMTProxyFakeTLS,parse_secret
 
-async def scenario(tamper=False):
-    key=secrets.token_bytes(16);domain='front.example.org'
+async def scenario(tamper=False, prefix=0x01):
+    key=bytes([prefix])+secrets.token_bytes(15);domain='front.example.org'
     secret='ee'+key.hex()+domain.encode().hex()
     completed=asyncio.get_running_loop().create_future()
     payload=secrets.token_bytes(8192)
@@ -59,8 +59,10 @@ async def scenario(tamper=False):
         await asyncio.wait_for(completed,3)
     finally:
         server.close();await server.wait_closed()
-asyncio.run(scenario());asyncio.run(scenario(tamper=True))
+for prefix in (0x01, 0xdd, 0xee):
+    asyncio.run(scenario(prefix=prefix))
+asyncio.run(scenario(tamper=True))
 for invalid in ['ee'+secrets.token_hex(16),'ee'+secrets.token_hex(16)+'bad/path'.encode().hex()]:
     try:parse_secret(invalid);raise AssertionError('Invalid secret accepted')
     except ValueError:pass
-print('PASS: ee ClientHello SNI/HMAC/time, authenticated server handshake, TLS record fragmentation/reassembly and tamper rejection without fallback')
+print('PASS: ee ClientHello SNI/HMAC/time, authenticated server handshake, TLS record fragmentation/reassembly tamper rejection without fallback, and dd/ee-prefixed key preservation')
