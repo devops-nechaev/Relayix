@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.4 Beta — 2026-11-05
+
+- Keep webhook priority and tags optional (default priority 3 and empty tags); validate malformed fields and apply only configured filters.
+- Return routing diagnostics with queue counts, matched filters and per-recipient exclusion reasons, and correlate routing decisions in service logs without exposing credentials or message bodies.
+- Add Test webhook to Routes, with priority, optional comma-separated tags, JSON copying, real event submission and a link to delivery results.
+
+- Focus the first editable field when opening a dialog and restore focus without scrolling when closing it. Use an explicit input line height for consistent caret alignment.
+- Show page-level feedback in a fixed notification stack so manual refresh, failures and notification dismissal keep the page in place. Stabilize scrollbar space and the refresh timestamp width.
+- Cover field focus and keyboard input at 150% scale, and verify page/header/scroll geometry during manual and automatic refresh.
+
 ## 0.6.3 Beta — 2026-11-05
 
 - Use one root `compose.yaml` with only the application and optional PostgreSQL services. Select local/external PostgreSQL and TLS in `.env`.

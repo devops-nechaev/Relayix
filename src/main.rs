@@ -6,6 +6,7 @@ mod preferences;
 mod auth;
 mod alerts;
 mod database;
+mod routing;
 #[cfg(test)]
 mod tests;
 use std::{env, sync::Arc, time::Duration};
@@ -155,28 +156,6 @@ async fn rotate_route(State(s):State<AppState>,h:HeaderMap,Path(id):Path<Uuid>)-
  let result:Option<(String,String)>=sqlx::query_as("UPDATE routes SET token_hash=$2 WHERE id=$1 RETURNING slug,name").bind(id).bind(hash(&token)).fetch_optional(&s.db).await.map_err(db_error)?;
  let (slug,name)=result.ok_or_else(||err(StatusCode::NOT_FOUND,"Route not found"))?;
  Ok(Json(json!({"token":token,"route_name":name,"endpoint":format!("/h/{slug}")})))
-}
-
-async fn ingest(State(s):State<AppState>,Path(slug):Path<String>,h:HeaderMap,Json(payload):Json<Value>)->ApiResult<Value>{
- let row:Option<(Uuid,String,bool,i32,Option<String>)>=sqlx::query_as("SELECT id,token_hash,enabled,min_priority,required_tag FROM routes WHERE slug=$1").bind(slug).fetch_optional(&s.db).await.map_err(db_error)?;
- let (route,expected,enabled,min,required)=row.ok_or_else(||err(StatusCode::NOT_FOUND,"Unknown route"))?;
- if !enabled{return Err(err(StatusCode::FORBIDDEN,"Route disabled"));}
- let supplied=h.get("x-relay-key").and_then(|v|v.to_str().ok()).unwrap_or("");
- if supplied.is_empty() || !bool::from(hash(supplied).as_bytes().ct_eq(expected.as_bytes())) {return Err(err(StatusCode::UNAUTHORIZED,"Invalid route key"));}
- let title=payload.get("title").and_then(Value::as_str).or_else(||payload.get("alertname").and_then(Value::as_str)).unwrap_or("Notification").to_owned();
- let message=payload.get("message").or_else(||payload.get("body")).and_then(Value::as_str).unwrap_or(&title).to_owned();
- let priority=payload.get("priority").and_then(Value::as_i64).unwrap_or(3).clamp(1,5) as i32;
- let tags:Vec<String>=payload.get("tags").and_then(Value::as_array).map(|a|a.iter().filter_map(Value::as_str).map(str::to_owned).collect()).unwrap_or_default();
- if title.len()>256 || message.len()>10000 || tags.len()>32 || tags.iter().any(|t|t.trim().is_empty()||t.len()>64) {return Err(err(StatusCode::BAD_REQUEST,"Payload too large"));}
- let event=Uuid::new_v4(); let mut tx=s.db.begin().await.map_err(db_error)?;
- sqlx::query("INSERT INTO events(id,route_id,title,message,priority,tags,payload) VALUES($1,$2,$3,$4,$5,$6,$7)").bind(event).bind(route).bind(title).bind(message).bind(priority).bind(json!(tags)).bind(payload).execute(&mut *tx).await.map_err(db_error)?;
- let mut total=0;
- if priority>=min && required.as_deref().map(str::trim).filter(|t| !t.is_empty()).map(|t| tags.iter().any(|tag| tag == t)).unwrap_or(true) {
- let ids:Vec<(Uuid,)>=sqlx::query_as("SELECT c.id FROM channels c JOIN route_channels rc ON rc.channel_id=c.id WHERE rc.route_id=$1 AND c.enabled=true").bind(route).fetch_all(&mut *tx).await.map_err(db_error)?;
- for (cid,) in ids {sqlx::query("INSERT INTO deliveries(id,event_id,channel_id) VALUES($1,$2,$3)").bind(Uuid::new_v4()).bind(event).bind(cid).execute(&mut *tx).await.map_err(db_error)?;total+=1;}
- }
- tx.commit().await.map_err(db_error)?;
- Ok(Json(json!({"event_id":event,"queued":total})))
 }
 
 #[derive(Serialize,FromRow)]
@@ -352,13 +331,14 @@ async fn main()->Result<()> {
  .route("/routes",get(routes).post(create_route))
  .route("/routes/{id}",axum::routing::put(update_route).delete(delete_route))
  .route("/routes/{id}/rotate",post(rotate_route))
+ .route("/routes/{id}/test",post(routing::test_route))
  .route("/deliveries",get(deliveries))
  .route("/deliveries/{id}/retry",post(retry))
  .fallback(||async{(StatusCode::NOT_FOUND,Json(json!({"error":"Unknown API endpoint"})))})
  .layer(axum::middleware::from_fn(no_store));
  let app=Router::new()
  .route("/healthz",get(health))
- .route("/h/{slug}",post(ingest))
+ .route("/h/{slug}",post(routing::ingest))
  .nest("/api",api)
  .fallback_service(ServeDir::new("web/dist").not_found_service(ServeFile::new("web/dist/index.html")))
  .layer(DefaultBodyLimit::max(64*1024))

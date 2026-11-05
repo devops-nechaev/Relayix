@@ -1,4 +1,4 @@
-# Relayix 0.6.3 Beta
+# Relayix 0.6.4 Beta
 
 A self-hosted notification hub: Rust / Axum / React / PostgreSQL. English interface, light and dark themes.
 
@@ -142,6 +142,18 @@ curl --fail-with-body -X POST http://192.168.39.110:8080/h/gitlab-deploy \
   -d '{"title":"Deployment successful","message":"auth deployed to production","priority":3,"tags":["deploy"]}'
 ```
 
+For a route without a tag filter, this minimal body is sufficient:
+
+```json
+{"title":"GitLab CI Tests","message":"Tests completed"}
+```
+
+Both `priority` and `tags` are optional. An omitted priority defaults to **3**; omitted or null tags become an empty array. Priority and tag filters are independent: a route with no required tag accepts events without tags.
+
+Every accepted webhook returns `event_id`, `queued` and `routing`. Routing diagnostics identify the route, configured filters, linked/active recipients and why each recipient was queued or excluded. A zero queue count reports `priority_below_minimum`, `tag_mismatch`, `no_destinations` or `no_active_destinations`. An authenticated request to a disabled route returns HTTP 403 with `route_disabled`. Service logs correlate decisions by event/route/channel ID without logging credentials or message bodies.
+
+Use **Routes → Test webhook** to copy an example JSON or send a real event through the same routing/queue code. Priority and comma-separated tags may be left empty. The result explains filtering and links to Deliveries for the actual send outcome. Copying JSON does not send an event.
+
 A successful response confirms queuing, not delivery. Check Deliveries for the result. The PostgreSQL worker uses row locking, stale-worker recovery and five attempts with exponential backoff; delivery is at least once.
 
 ## Failure alerts
@@ -186,6 +198,7 @@ Use an authenticated browser session plus `X-Relay-Client: web`, or `Authorizati
 | GET / POST | `/api/routes` | List/create routes |
 | PUT / DELETE | `/api/routes/{id}` | Edit/delete route |
 | POST | `/api/routes/{id}/rotate` | Rotate route key |
+| POST | `/api/routes/{id}/test` | Send a real test event through route filters and return routing diagnostics; authenticated users only |
 | GET | `/api/stats` | Delivery and failure counters |
 | GET | `/api/deliveries` | `{items,total,page,page_size}` with filters |
 | POST | `/api/deliveries/{id}/retry` | Retry failed/retrying delivery |
