@@ -14,7 +14,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/app/target \
     cargo test --locked --release && cargo build --locked --release && cp target/release/relayix /app/relayix
 
-FROM python:3.15.2-slim-trixie
+FROM python:3.16.0a1-slim-trixie
 RUN apt-get update && apt-get upgrade -y --no-install-recommends && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/* \
     && useradd --system --uid 10001 --home-dir /nonexistent --shell /usr/sbin/nologin relayix
 COPY transport/requirements.txt /app/transport/requirements.txt
