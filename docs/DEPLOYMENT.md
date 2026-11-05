@@ -70,7 +70,7 @@ POSTGRES_CA_PATH=/srv/relayix/postgres-ca.crt
 
 `POSTGRES_CA_PATH` is the path to the CA certificate **on the Docker host**; a relative path such as `./postgres-ca.crt` also works. The file must exist and be readable by container user 10001. Compose mounts it read-only; no overlay file or extra command-line flags are needed. The database hostname must match the server certificate.
 
-Leave `POSTGRES_CA_PATH` empty to use the image's system trust store. For a LAN database configured without TLS, explicitly set `POSTGRES_SSLMODE=disable` and leave the CA path empty.
+Leave `POSTGRES_CA_PATH` empty to use the image's default trusted CA certificates. For a LAN database configured without TLS, explicitly set `POSTGRES_SSLMODE=disable` and leave the CA path empty.
 
 Apply either configuration with:
 

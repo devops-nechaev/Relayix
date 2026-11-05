@@ -185,7 +185,7 @@ scripts/compose.sh pull app
 scripts/compose.sh up -d --no-deps app
 ```
 
-Database migrations run automatically. Keep the same database settings and data volume.
+Database migrations run automatically. Keep the same database settings and data volume. When adopting the named containers and network in 0.6.3 for the first time, run `scripts/compose.sh up -d` once to apply those Compose changes to both services.
 
 ## Common operations
 

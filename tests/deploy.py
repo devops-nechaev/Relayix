@@ -10,7 +10,7 @@ import tempfile
 SOURCE = Path(__file__).resolve().parents[1] / 'scripts' / 'deploy.sh'
 PASSWORD=secrets.token_hex(32)
 OLD=json.dumps({'COMPOSE_PROJECT_NAME':'relayix','POSTGRES_PASSWORD':PASSWORD})
-OLD_COMPOSE='services:\n  app:\n    image: ghcr.io/example/relayix:0.6.1\n'
+OLD_COMPOSE='services:\n  app:\n    image: ${RELAYIX_IMAGE_OVERRIDE:-ghcr.io/example/relayix:0.6.1}\n'
 with tempfile.TemporaryDirectory(prefix='relayix-deploy-test-') as directory:
     workspace=Path(directory)
     root=workspace/'repo';root.mkdir()
@@ -31,7 +31,9 @@ with Path('docker.log').open('a') as out:
     out.write(' '.join(args) + '\\n')
     if os.environ.get('RELAYIX_IMAGE_OVERRIDE'):out.write('explicit-image-override\\n')
 if 'ps' in args:print('fixture-app')
-if 'inspect' in args:print('{\"fixture-network\":{}}')
+if 'inspect' in args:
+    if '{{.Config.Image}}' in args:print('ghcr.io/example/relayix:0.6.1')
+    else:print('{\"fixture-network\":{}}')
 if 'pg_dump' in args: print('fixture database dump')
 if 'pull' in args and os.environ.get('FAIL_PULL'): sys.exit(1)
 ''')
@@ -70,10 +72,12 @@ os.execv({sys.executable!r}, [{sys.executable!r}] + sys.argv[1:])
     assert compose_file.read_text()==OLD_COMPOSE
     (root / 'docker.log').write_text('')
     compose_file.write_text(OLD_COMPOSE)
+    # A source checkout may already select the new release while the old image is running.
+    compose_file.write_text(OLD_COMPOSE.replace('0.6.1', '0.6.3'))
     result = run({'FAIL_HEALTH': '1'})
     assert compose_file.read_text()==OLD_COMPOSE
     assert result.returncode != 0 and (config).read_text() == OLD
-    assert (root / 'docker.log').read_text().count('up -d --no-deps app') == 2
+    assert (root / 'docker.log').read_text().count('up -d app') == 2
     remote={**json.loads(OLD),'DATABASE_MODE':'external','POSTGRES_HOST':'postgres.example.org'}
     config.write_text(json.dumps(remote))
     result=run()

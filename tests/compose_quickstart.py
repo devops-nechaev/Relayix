@@ -33,6 +33,13 @@ for mode in (sys.argv[1:] or ('local', 'external', 'external-tls')):
             index = next(i for i, line in enumerate(bundle) if line.startswith('    image: '))
             bundle[index] = '    image: ' + os.environ['RELAYIX_TEST_IMAGE']
             (path / 'compose.yaml').write_text('\n'.join(bundle) + '\n')
+        current_compose = (path / 'compose.yaml').read_text()
+        if mode == 'local':
+            # Simulate a pre-upgrade installation with automatic container/network names.
+            legacy = '\n'.join(line for line in current_compose.splitlines()
+                               if not line.strip().startswith('container_name:')) + '\n'
+            legacy = legacy.split('\nnetworks:\n', 1)[0] + '\n'
+            (path / 'compose.yaml').write_text(legacy)
         # Exercise the shipped template, including its automatic profile selection.
         settings = (ROOT / 'relayix.env.example').read_text()
         settings = settings.replace("POSTGRES_PASSWORD=''", "POSTGRES_PASSWORD='" + password + "'")
@@ -128,6 +135,20 @@ for mode in (sys.argv[1:] or ('local', 'external', 'external-tls')):
                 headers={'Content-Type': 'application/json', 'X-Relay-Client': 'web'})
             with urllib.request.urlopen(request, timeout=10) as response:
                 assert response.status == 200
+            if mode == 'local':
+                database = dc('ps', '-q', 'db').strip()
+                run('docker', 'exec', database, 'psql', '-U', 'relayix', '-d', 'relayix', '-c',
+                    "CREATE TABLE compose_upgrade_probe (value text); INSERT INTO compose_upgrade_probe VALUES ('preserved');")
+                (path / 'compose.yaml').write_text(current_compose)
+                dc('up', '-d', '--wait', '--wait-timeout', '90')
+                database = dc('ps', '-q', 'db').strip()
+                assert run('docker', 'exec', database, 'psql', '-U', 'relayix', '-d', 'relayix', '-Atc',
+                           'SELECT value FROM compose_upgrade_probe;').strip() == 'preserved'
+                for service in ('app', 'db'):
+                    identifier = dc('ps', '-q', service).strip()
+                    assert run('docker', 'inspect', identifier, '--format', '{{.Name}}').strip() == '/' + project + '-' + service
+                    networks = json.loads(run('docker', 'inspect', identifier, '--format', '{{json .NetworkSettings.Networks}}'))
+                    assert set(networks) == {project + '-network'}
             # Recreating the app must preserve data and the existing login.
             dc('up', '-d', '--no-deps', '--force-recreate', 'app')
             for attempt in range(60):
