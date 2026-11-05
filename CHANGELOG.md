@@ -1,0 +1,78 @@
+# Changelog
+
+## Unreleased — 2026-11-05
+
+- Compact channel rows show destination, connection, status and actions without credential placeholders.
+- Use the official Mattermost SVG logomark with its source notice.
+- Configure Telegram application credentials once per server, retain channel overrides and use zero access hashes for bot destinations.
+- Add dashboard and channel screenshots with demonstration data to the README.
+
+## 0.6.1 Beta — 2026-11-04
+
+- Add real ee FakeTLS for MTProto with validated SNI, authenticated ClientHello/server HMAC, TLS record framing and explicit rejection without downgrade. WEB remains plain/dd.
+- Remove deployment .env and .env.example from the checkout. Load an external owner-only JSON through a Compose wrapper; disable automatic dotenv discovery.
+- Render deployment candidates from GitHub production Secrets and Variables, reject database-password mismatches, and retain backup/rollback behavior.
+- Generate shared test admin/database/provider/proxy credentials for every run in a temporary external directory, mask them in GitHub logs, and remove them on cleanup. Remove fixed credentials from Python/Rust tests.
+
+## 0.6.0 Beta — 2026-11-04
+
+- Add per-channel authenticated HTTP proxies for HTTP integrations and SMTP CONNECT; preserve TLS verification and refuse silent direct fallback.
+- Add Telegram MTProto (plain/dd) and WEB-proxy transport with in-memory bot sessions, per-attempt deadlines, API credentials, topic mapping and safe errors. Explicitly reject unsupported FakeTLS ee secrets and WEB base paths.
+- Include destination service identity/icons in dashboard and delivery history.
+- Move existing private backups outside the source checkout and keep schema migrations tracked.
+- Add Apache-2.0 license metadata, NOTICE, collected dependency licenses and publication documentation.
+- Add exact local-credential checks, Gitleaks source/history gates in CI and preserve a narrow public-placeholder exception.
+
+## 0.5.1 Beta — 2026-11-04
+
+- Add dismiss buttons to all success/error banners and a per-account auto-close timeout in My profile (8 seconds by default, 0 for manual dismissal); pause timers on hover/focus.
+- Add a separate SMTP sender name with Unicode support, legacy From mailbox compatibility and control-character validation.
+- Explain route priority levels, threshold behavior and the default message priority in route forms.
+- Remove the sidebar description and login description/badges; keep sign-in compact.
+- Rename the project directory to relayix while preserving the existing Compose project and PostgreSQL volume.
+- Prepare GitHub CI with locked dependencies, Rust/API/SMTP/Chromium checks, test artifacts, and gated GHCR release delivery. Add contribution/security documentation and Dependabot.
+
+## 0.5.0 Beta — 2026-11-04
+
+- Rename the application to Relayix with a violet routing mark, new login branding, calmer light/dark surfaces and responsive route cards.
+- Add seven account-persisted dashboard periods from five minutes to thirty days; apply the period to metrics, recent deliveries and linked history filters.
+- Consolidate endpoints, key rotation, recipient details and a copyable tagged request example in Routes; remove the API Tokens page.
+- Label route tags simply as Tag and show recipients in a dedicated block with service icons and delivery methods.
+- Support Mattermost bot / personal access tokens for channel posts and direct messages, preserving webhook compatibility and masked credentials. Use the official Mattermost logomark.
+- Preserve existing PostgreSQL volume, users, sessions, routes, webhook addresses, credentials and keys on upgrade.
+
+## 0.4.1 Beta — 2026-11-04
+
+- Store theme, refresh interval, delivery/tag filters, route tag filter, search and page size in account preferences; keep account and API-token preferences isolated.
+- Add configurable 5–3600 second monitoring refresh and an off setting. Show save failures and support retrying them.
+- Generate route webhook addresses automatically and preserve existing addresses when renaming routes.
+- Show full selectable endpoints and display key/endpoint clipboard feedback inside the key dialog.
+- Display actual delivery tags and route required-tag badges; add exact tag filters and suggestions.
+- Add Beta branding on the login screen, application header and browser title.
+- Remove the two dashboard callout cards.
+- Remove image/source bundles, generated reports and screenshots from the source tree; keep build/test outputs outside the repository and retain Docker images in Docker.
+
+## 0.4.0 — 2026-11-04
+
+- Ship a versioned Docker image and image-only Compose deployment; provide native Docker image export for transfer.
+- Add username/password authentication, Argon2id hashes, expiring HttpOnly sessions, login throttling, user management and administrator/member roles.
+- Replace the avatar placeholder with an account menu, personal profile, password changes and session revocation.
+- Make Refresh show progress, update time, success/errors and fetch uncached data. Update independent resources even if one request fails.
+- Add dashboard failed/retrying counters and links to filtered delivery history.
+- Add configurable failure rules with watched routes/channels, recipients, thresholds, minimum attempts, time windows, cooldown and editable warning text.
+- Deliver failure warnings through a separate persistent queue with history/retries and protection against recursive warnings.
+- Support optional Telegram topic IDs.
+- Filter and paginate deliveries on the server by status, channel, route, dates and text; show attempts and expandable errors.
+- Disable Templates UI, API and message expansion while retaining historical database rows.
+- Preserve existing channel credentials, routes, webhook keys and PostgreSQL volume with an additive migration.
+
+## 0.3.0 — 2026-11-04
+
+- Add local SVG service icons to channel cards, integration selection and route recipients.
+- Group all 13 integrations into Chat & Messaging, Push Notifications, Email and Other.
+- Add Matrix delivery with bot access tokens, safe room path encoding and stable transaction IDs on retries. Refuse encrypted rooms.
+- Add Email (SMTP) with STARTTLS, implicit TLS, optional authentication, sender and recipient configuration.
+- Mask new credentials and Pushover user keys; preserve unchanged secrets when editing channels.
+- Show server validation errors inside channel forms and expose channel deletion on cards.
+- Include application version in `/healthz`, update upgrade instructions, and add Rust, HTTP/SMTP queue and browser checks.
+- Keep existing database migrations, route URLs, keys and channel settings compatible with v0.1/v0.2.

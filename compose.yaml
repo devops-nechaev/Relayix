@@ -1,0 +1,38 @@
+services:
+  app:
+    image: ${RELAYIX_IMAGE:-${RELAYNEST_IMAGE:-relayix:0.6.1}}
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${RELAYIX_DATABASE_URL:?use scripts/compose.sh with private configuration}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      TELEGRAM_API_ID: ${TELEGRAM_API_ID:-}
+      TELEGRAM_API_HASH: ${TELEGRAM_API_HASH:-}
+      PORT: '8080'
+      RUST_LOG: ${RUST_LOG:-relayix=info}
+      ALLOW_INSECURE_HTTP: ${ALLOW_INSECURE_HTTP:-false}
+    ports:
+      - '${BIND_ADDRESS:-127.0.0.1}:${PORT:-8080}:8080'
+    depends_on:
+      db:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: relaynest
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: relaynest
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U relaynest -d relaynest']
+      interval: 5s
+      timeout: 3s
+      retries: 15
+volumes:
+  db_data:

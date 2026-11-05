@@ -1,0 +1,7 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Public integration-guide placeholder; never a real route key"
+regexTarget = "secret"
+regexes = ['''^YOUR_ROUTE_KEY$''']

@@ -1,0 +1,52 @@
+name: Verify
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+permissions:
+  contents: read
+concurrency:
+  group: verify-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      RELAYIX_TEST_IMAGE: relayix:ci
+      RELAYIX_TEST_ARTIFACTS: /tmp/relayix-ci-artifacts
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Check private paths and credential patterns
+        run: |
+          python3 scripts/check_secrets.py
+          git ls-files -z | tar --null -T - -cf /tmp/relayix-source.tar
+          mkdir -p /tmp/relayix-secret-scan
+          tar -xf /tmp/relayix-source.tar -C /tmp/relayix-secret-scan
+          docker run --rm -v /tmp/relayix-secret-scan:/scan:ro ghcr.io/gitleaks/gitleaks:v8.30.1 dir /scan --config=/scan/.gitleaks.toml --redact=100 --no-banner
+          docker run --rm -v "$PWD:/repo:ro" ghcr.io/gitleaks/gitleaks:v8.30.1 git /repo --config=/repo/.gitleaks.toml --redact=100 --no-banner
+      - name: Deployment backup and rollback tests (fake Docker)
+        run: python3 tests/deploy.py
+      - uses: docker/setup-buildx-action@v4
+      - name: Build application and run Rust tests
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          tags: relayix:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: API, SMTP and Chromium integration tests
+        run: scripts/check.sh --skip-app-build
+      - name: Browser screenshots and failure logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: verification-artifacts
+          path: /tmp/relayix-ci-artifacts/
+          retention-days: 7

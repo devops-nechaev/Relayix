@@ -1,0 +1,19 @@
+# Channel proxies
+
+Every channel has a **Connection** selector. Existing channels default to direct delivery.
+
+**HTTP proxy** takes an IP/DNS host, port, and optional login/password. Enter only the host, not a URL. Provide both login and password when authentication is required. Credentials are masked when channels are listed or edited and preserved on masked edits. All requests for a delivery use that proxy, including Mattermost bot lookups/posts and Matrix room checks. HTTPS uses CONNECT. SMTP also uses CONNECT while retaining TLS/STARTTLS certificate validation against the actual SMTP server. Proxy errors do not fall back to direct delivery. A trusted proxy is required; a plaintext HTTP destination is visible to it.
+
+## Telegram MTProto and WEB
+
+Telegram additionally supports **MTProto proxy (plain / dd / ee)** and **Telegram WEB-proxy** through a separate Python MTProto adapter in the Docker image. These are real MTProto connections, not HTTP Bot API requests passed to an MTProxy. Regular direct/HTTP-proxy modes continue to use Bot API.
+
+Configure the bot token, proxy secret, and destination. Set `TELEGRAM_API_ID` and `TELEGRAM_API_HASH` once in the external private deployment JSON, then recreate the app with `scripts/compose.sh up -d app`. Obtain these application credentials from my.telegram.org; the proxy provider does not issue them. All channels use these server defaults, with an optional per-channel application override under Application credentials (optional override). MTProto bot authorization still requires application credentials; telemt is a compatible MTProxy server, not a replacement for Telegram authorization. See https://core.telegram.org/api/bots and https://github.com/telemt/telemt. MTProto takes a proxy host/port. WEB takes a root DNS hostname on HTTPS port 443 (the `tdesktop-web-proxy-bridge-v1` relay protocol); a pasted `https://` prefix is accepted. A proxy requiring a browser challenge unsupported by the connector will fail explicitly.
+
+MTProto supports plain 32-hex, dd-prefixed, and `ee` FakeTLS secrets. An ee secret contains the prefix, a 16-byte key, and a hex-encoded ASCII SNI domain. The ee connector sends an authenticated ClientHello, verifies the server HMAC, and carries obfuscated MTProto inside TLS-shaped records; it does not strip ee and downgrade to dd. WEB still supports plain/dd only, and WEB base paths are rejected explicitly. Do not substitute an HTTP reverse-proxy URL for a Telegram WEB-proxy. These modes do not silently fall back to Bot API or a direct Telegram connection.
+
+Use `@channelusername` for public destinations. Numeric Bot API chat IDs are supported for users, groups and channels. Bots use a zero access hash when constructing user/channel peers; no manually entered chat access hash is required. See https://core.telegram.org/api/peers#access-hash. Topic IDs map to the MTProto reply thread. The bot must already be allowed to post to the target.
+
+Credentials travel to the adapter over stdin, not process arguments. Sessions exist only in memory, not in source files or a persistent Telegram session file. A fresh short-lived bot session is established per attempt, with fixed timeouts and a stable message random ID per delivery. High-volume installations should measure Telegram's rate limits before relying on this transport.
+
+Automated checks cover proxy forwarding/authentication, SMTP CONNECT, HTTP failure without direct fallback, real connector imports, a local ee handshake/record exchange with HMAC tamper rejection, MTProto request/destination/topic construction, redaction and UI configuration. They do not contact Telegram or establish a live MTProxy/WEB session; a real-proxy test needs an operator-owned proxy and server-level Telegram application credentials. The WEB connector is an upstream alpha dependency and should be treated as experimental.

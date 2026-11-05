@@ -1,0 +1,12 @@
+{
+  "TELEGRAM_API_ID": "",
+  "TELEGRAM_API_HASH": "",
+  "ADMIN_USERNAME": "admin",
+  "COOKIE_SECURE": "false",
+  "COMPOSE_PROJECT_NAME": "relayix",
+  "RELAYIX_IMAGE": "relayix:0.6.1",
+  "BIND_ADDRESS": "127.0.0.1",
+  "PORT": "8080",
+  "RUST_LOG": "relayix=info,tower_http=info",
+  "ALLOW_INSECURE_HTTP": "false"
+}
