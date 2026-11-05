@@ -37,7 +37,7 @@ Container package visibility is controlled in GitHub Packages. For anonymous pul
 
 ## Deployment configuration and GitHub Secrets
 
-Create the `production` GitHub environment with required reviewers and restrict deployments to the default branch. Keep Compose project `relayix` and the data volume selected by `RELAYIX_DB_VOLUME` for an existing installation.
+Use the `production` GitHub environment. The deployment workflow runs only on the default branch; existing environment protection settings are preserved. Keep Compose project `relayix` and the data volume selected by `RELAYIX_DB_VOLUME` for an existing installation.
 
 Store these **Secrets** in the production environment:
 
@@ -47,7 +47,7 @@ Store these **Secrets** in the production environment:
 | `RELAYIX_ADMIN_TOKEN` | `ADMIN_TOKEN` |
 | `RELAYIX_ADMIN_PASSWORD` | `ADMIN_PASSWORD` (bootstrap credential) |
 
-Use the current values. Do not generate a new database password for an existing database. With an authenticated GitHub CLI, `python3 scripts/sync_github_secrets.py` uploads these values directly from the external private configuration over stdin, without placing them in shell history or printing them. It preserves existing environment protection settings. This command needs access to manage environment Secrets; source preparation alone does not create them remotely.
+Use the current values. Do not generate a new database password for an existing database. With an authenticated GitHub CLI, `python3 scripts/sync_github_secrets.py` creates the environment if needed and synchronizes Secrets and Variables directly from the external private configuration over stdin, without placing them in shell history or printing them. It preserves existing environment protection settings. `--dry-run` lists setting names without contacting GitHub or showing values. Optional Telegram API credentials are also uploaded as Secrets when configured. This command needs access to manage environment Secrets and Variables; source preparation alone does not create them remotely.
 
 Use **Variables** for nonsecret configuration:
 
@@ -55,7 +55,11 @@ Use **Variables** for nonsecret configuration:
 - `RELAYIX_CONFIG_FILE`: optional absolute private JSON path (default `../private/relayix-config/deployment.json` relative to the checkout).
 - `RELAYIX_COMPOSE_PROJECT`: `relayix` for this existing installation.
 - `RELAYIX_HEALTH_URL`: `http://192.168.39.110:8080/healthz` for this installation.
-- Optional `RELAYIX_ADMIN_USERNAME`, `RELAYIX_BIND_ADDRESS`, `RELAYIX_PORT`, `RELAYIX_COOKIE_SECURE` override their existing nonsecret values.
+- `RELAYIX_ADMIN_USERNAME`, `RELAYIX_BIND_ADDRESS`, `RELAYIX_PORT`, `RELAYIX_COOKIE_SECURE`, `RELAYIX_ALLOW_INSECURE_HTTP` and `RELAYIX_RUST_LOG` configure the app.
+- `RELAYIX_DATABASE_MODE`, `RELAYIX_POSTGRES_HOST`, `RELAYIX_POSTGRES_PORT`, `RELAYIX_POSTGRES_USER`, `RELAYIX_POSTGRES_DB`, `RELAYIX_POSTGRES_SSLMODE` and optional `RELAYIX_POSTGRES_SSLROOTCERT` configure database access.
+- `RELAYIX_POSTGRES_IMAGE`, `RELAYIX_POSTGRES_CLIENT_IMAGE` and `RELAYIX_DB_VOLUME` preserve database image and storage selection.
+
+The synchronization command sets these Variables from the current private configuration. Passwords and Telegram API credentials are always Secrets.
 
 `Deploy release` is a manual workflow on the default branch, targeting a dedicated Linux x64 runner labelled `relayix-deploy`. That trusted runner needs Docker Compose v2, Bash and Python 3 and access to the deployment host. Pull requests and CI run on GitHub-hosted runners, not that server.
 

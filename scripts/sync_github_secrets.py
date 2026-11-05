@@ -1,22 +1,74 @@
 #!/usr/bin/env python3
-"""Upload private deployment credentials to GitHub Secrets via authenticated gh."""
-import argparse,json,os,shutil,subprocess
+"""Sync deployment Secrets and Variables without exposing credential values."""
+import argparse
+import json
+import os
 from pathlib import Path
-parser=argparse.ArgumentParser();parser.add_argument('--repo',default='devops-nechaev/Relayix');args=parser.parse_args()
-if not shutil.which('gh'):raise SystemExit('An authenticated GitHub CLI is required; no secrets were uploaded')
-root=Path(__file__).resolve().parents[1]
-config=json.loads(Path(os.environ.get('RELAYIX_CONFIG_FILE',root.parent/'private'/'relayix-config'/'deployment.json')).read_text())
-status=subprocess.run(['gh','auth','status'],capture_output=True)
-if status.returncode:raise SystemExit('GitHub authentication is required; no secrets were uploaded')
-# Do not pass secret bodies on argv or print API responses.
-result=subprocess.run(['gh','api',f'repos/{args.repo}/environments/production'],capture_output=True)
+import shutil
+import subprocess
+from deployment import ROOT, read_config, database_settings
+
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--repo', default='devops-nechaev/Relayix')
+parser.add_argument('--environment', default='production')
+parser.add_argument('--dry-run', action='store_true', help='List setting names without contacting GitHub')
+args = parser.parse_args()
+config = read_config()
+db = database_settings(config)
+secrets = {}
+for key in ('POSTGRES_PASSWORD', 'ADMIN_TOKEN', 'ADMIN_PASSWORD'):
+    if not config.get(key):
+        raise SystemExit('Required private deployment value missing: ' + key)
+    secrets['RELAYIX_' + key] = config[key]
+for key in ('TELEGRAM_API_ID', 'TELEGRAM_API_HASH'):
+    if config.get(key):
+        secrets['RELAYIX_' + key] = config[key]
+
+defaults = json.loads((ROOT / 'config/deployment.example.json').read_text())
+variables = {}
+for key in ('DATABASE_MODE', 'ADMIN_USERNAME', 'BIND_ADDRESS', 'PORT', 'COOKIE_SECURE',
+            'POSTGRES_IMAGE', 'POSTGRES_CLIENT_IMAGE', 'ALLOW_INSECURE_HTTP', 'RUST_LOG'):
+    variables['RELAYIX_' + key] = config.get(key, defaults[key])
+for key, field in (('POSTGRES_HOST', 'host'), ('POSTGRES_PORT', 'port'),
+                   ('POSTGRES_USER', 'user'), ('POSTGRES_DB', 'database'),
+                   ('POSTGRES_SSLMODE', 'sslmode')):
+    variables['RELAYIX_' + key] = db[field]
+if config.get('POSTGRES_SSLROOTCERT'):
+    variables['RELAYIX_POSTGRES_SSLROOTCERT'] = config['POSTGRES_SSLROOTCERT']
+project = config.get('COMPOSE_PROJECT_NAME', 'relayix')
+host = config.get('BIND_ADDRESS', defaults['BIND_ADDRESS'])
+if host in ('0.0.0.0', '::'):
+    host = '127.0.0.1'
+if ':' in host and not host.startswith('['):
+    host = '[' + host + ']'
+variables.update({
+    'RELAYIX_DEPLOY_DIR': str(ROOT),
+    'RELAYIX_CONFIG_FILE': str(Path(os.environ.get('RELAYIX_CONFIG_FILE', ROOT.parent / 'private/relayix-config/deployment.json')).resolve()),
+    'RELAYIX_COMPOSE_PROJECT': project,
+    'RELAYIX_DB_VOLUME': config.get('RELAYIX_DB_VOLUME', project + '_db_data'),
+    'RELAYIX_HEALTH_URL': 'http://' + host + ':' + variables['RELAYIX_PORT'] + '/healthz',
+})
+if args.dry_run:
+    for kind, settings in (('secret', secrets), ('variable', variables)):
+        for name in sorted(settings):
+            print('Planned ' + args.environment + ' ' + kind + ' ' + name)
+    raise SystemExit(0)
+if not shutil.which('gh'):
+    raise SystemExit('An authenticated GitHub CLI is required; no settings were uploaded')
+if subprocess.run(['gh', 'auth', 'status'], capture_output=True).returncode:
+    raise SystemExit('GitHub authentication is required; no settings were uploaded')
+endpoint = 'repos/' + args.repo + '/environments/' + args.environment
+result = subprocess.run(['gh', 'api', endpoint], capture_output=True)
 if result.returncode:
-    if b'404' not in result.stderr:raise SystemExit('Cannot inspect production environment; no secrets were uploaded')
-    result=subprocess.run(['gh','api','--method','PUT',f'repos/{args.repo}/environments/production'],capture_output=True)
-    if result.returncode:raise SystemExit('Cannot create production environment; no secrets were uploaded')
-for key in ['POSTGRES_PASSWORD','ADMIN_TOKEN','ADMIN_PASSWORD']:
-    value=config.get(key)
-    if not value:raise SystemExit('Required private deployment value missing')
-    result=subprocess.run(['gh','secret','set','RELAYIX_'+key,'--repo',args.repo,'--env','production'],input=value,text=True,capture_output=True)
-    if result.returncode:raise SystemExit('GitHub rejected a secret update; secret values omitted')
-    print('Configured production secret RELAYIX_'+key)
+    if b'404' not in result.stderr:
+        raise SystemExit('Cannot inspect deployment environment; no settings were uploaded')
+    if subprocess.run(['gh', 'api', '--method', 'PUT', endpoint], capture_output=True).returncode:
+        raise SystemExit('Cannot create deployment environment; no settings were uploaded')
+# Existing environment protections are preserved. Bodies go through stdin only.
+for kind, settings in (('secret', secrets), ('variable', variables)):
+    for name, value in settings.items():
+        result = subprocess.run(['gh', kind, 'set', name, '--repo', args.repo, '--env', args.environment],
+                                input=value, text=True, capture_output=True)
+        if result.returncode:
+            raise SystemExit('GitHub rejected ' + kind + ' update: ' + name + '; values omitted')
+        print('Configured ' + args.environment + ' ' + kind + ' ' + name)
