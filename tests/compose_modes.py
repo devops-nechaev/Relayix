@@ -14,7 +14,8 @@ with tempfile.TemporaryDirectory(prefix='relayix-compose-model-') as directory:
   result=subprocess.run([str(ROOT/'scripts/compose.sh'),'--profile','tools','config','--format','json'],env={**os.environ,'RELAYIX_CONFIG_FILE':str(path)},capture_output=True,text=True,check=True)
   assert settings['POSTGRES_PASSWORD'] not in result.stderr
   return json.loads(result.stdout)
- local=model(config)
+ local=model({**config,'RELAYIX_IMAGE':'unused-legacy-image:0.6.1'})
+ assert local['services']['app']['image']=='ghcr.io/devops-nechaev/relayix:0.6.2'
  assert set(local['services'])=={'app','db','db-tools'}
  uri=urlsplit(local['services']['app']['environment']['DATABASE_URL'])
  assert uri.hostname=='db' and unquote(uri.password)==config['POSTGRES_PASSWORD']

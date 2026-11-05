@@ -1,7 +1,7 @@
 # Shared services; use scripts/compose.sh to choose the database mode.
 services:
   app:
-    image: ${RELAYIX_IMAGE:-relayix:0.6.1}
+    image: ghcr.io/devops-nechaev/relayix:0.6.2
     restart: unless-stopped
     environment:
       DATABASE_URL: ${RELAYIX_DATABASE_URL:?use scripts/compose.sh with private configuration}

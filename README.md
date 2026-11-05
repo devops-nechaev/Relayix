@@ -1,17 +1,17 @@
-# Relayix 0.6.1 Beta
+# Relayix 0.6.2 Beta
 
-A self-hosted notification hub: Rust / Axum / React / PostgreSQL. English interface, light and dark themes. Docker Compose runs the application with bundled or external PostgreSQL. Build the image in Docker or use a published image; all deployment settings live in one private JSON file.
+A self-hosted notification hub: Rust / Axum / React / PostgreSQL. English interface, light and dark themes. Docker Compose runs the application with bundled or external PostgreSQL. Build the image in Docker or use a published image; application and database settings live in one private JSON file, with the image tag selected in Compose.
 
-## Запуск через Docker Compose
+## Docker Compose quick start
 
-**Все переменные задаются в одном приватном файле** `../private/relayix-config/deployment.json`. Подробная пошаговая инструкция: **[база внутри Compose, удалённая база и PostgreSQL на хосте](docs/DEPLOYMENT.md)**.
+Set application and database variables in **one private JSON file**: `../private/relayix-config/deployment.json`. Select the app image in **`compose.app.yaml`**. See the [complete setup guide](docs/DEPLOYMENT.md) for bundled, external and host PostgreSQL.
 
-Для новой установки со встроенной PostgreSQL:
+For a new installation with bundled PostgreSQL:
 
 ```bash
 git clone https://github.com/devops-nechaev/Relayix.git
 cd Relayix
-docker build --pull -t relayix:0.6.1 .
+docker build --pull -t ghcr.io/devops-nechaev/relayix:0.6.2 .
 python3 scripts/write_config.py ../private/relayix-config/deployment.json --database local --generate
 nano ../private/relayix-config/deployment.json
 scripts/compose.sh up -d
@@ -19,11 +19,22 @@ scripts/compose.sh ps
 curl --fail http://127.0.0.1:8080/healthz
 ```
 
-Откройте `http://127.0.0.1:8080` на хосте; логин и пароль находятся в `ADMIN_USERNAME` / `ADMIN_PASSWORD` созданного файла. Для доступа по сети настройте `BIND_ADDRESS` и используйте адрес сервера.
+Open `http://127.0.0.1:8080` on the Docker host and sign in with the generated `ADMIN_USERNAME` / `ADMIN_PASSWORD`. Set `BIND_ADDRESS` to a LAN address or `0.0.0.0` for access from another computer.
 
-Для готовой PostgreSQL создайте конфигурацию с `--database external --generate`, затем заполните `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, `POSTGRES_DB`, существующий `POSTGRES_PASSWORD` и TLS-параметры. Команда запуска остаётся `scripts/compose.sh up -d`; локальная база не запускается. Для базы на хосте используйте `POSTGRES_HOST=host.docker.internal`. [Полный пример](docs/DEPLOYMENT.md#вариант-b-готовая-удалённая-база).
+For an existing PostgreSQL server, generate settings with `--database external --generate`, then fill in `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, `POSTGRES_DB`, the existing `POSTGRES_PASSWORD` and TLS settings. Run the same `scripts/compose.sh up -d`; no bundled database starts. For PostgreSQL on the Docker host, use `POSTGRES_HOST=host.docker.internal`. [External database example](docs/DEPLOYMENT.md#option-b-existing-external-postgresql).
 
-Docker Compose v2 и Python 3.10+ нужны на хосте; Rust/Node.js устанавливать не требуется. Если используете опубликованный образ, укажите его адрес в `RELAYIX_IMAGE` вместо локального тега и выполните `docker pull` вместо сборки. [GitHub/GHCR](docs/GITHUB.md), [обновление существующей установки](UPGRADE.md).
+The host needs Docker Compose v2 and Python 3.10+; Rust and Node.js run in Docker. Once the release image is published, pull the image selected in Compose instead of building it. See [GitHub/GHCR publication](docs/GITHUB.md).
+
+## Updating
+
+Change the app image tag in `compose.app.yaml`, then run:
+
+```bash
+scripts/compose.sh pull app
+scripts/compose.sh up -d --no-deps app
+```
+
+Schema migrations run automatically; database settings and data volumes stay in place.
 
 ## Screenshots
 
@@ -41,7 +52,7 @@ The screenshots use demonstration data and show the current interface.
 
 Application, build and test images use Debian 13 Trixie. The verified toolchain is Rust 1.99.1, Node.js 26.13.0 LTS and Python 3.15.2; PostgreSQL uses the maintained 17.11 release on Trixie. Debian packages are upgraded from stable repositories during application/test image builds. Cargo, npm and Python dependencies are locked, and Python packages retain mandatory artifact hashes.
 
-The November 2026 refresh includes React 19.3.1, Vite 8.3.6, Lucide 1.69.0, SQLx 0.9.0, Reqwest 0.13.5, Argon2 0.6.0 and rand 0.10.3. See [upgrade notes](UPGRADE.md) before switching an existing PostgreSQL volume between base distributions. `RELAYIX_DB_VOLUME` selects an existing named data volume; keep that setting in the private deployment JSON after a transfer.
+The November 2026 refresh includes React 19.3.1, Vite 8.3.6, Lucide 1.69.0, SQLx 0.9.0, Reqwest 0.13.5, Argon2 0.6.0 and rand 0.10.3. Keep the existing database image and data volume when updating the app. `RELAYIX_DB_VOLUME` selects an existing named data volume; keep that setting in the private deployment JSON after a transfer.
 
 ## Accounts and profiles
 

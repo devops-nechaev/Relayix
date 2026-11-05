@@ -10,7 +10,7 @@ The local origin is connected to https://github.com/devops-nechaev/Relayix.git a
 git remote -v  # origin: https://github.com/devops-nechaev/Relayix.git
 git add .
 git diff --cached --stat
-git commit -m "Prepare Relayix 0.6.1 Beta"
+git commit -m "Prepare Relayix 0.6.2 Beta"
 git push -u origin main
 ```
 
@@ -27,11 +27,11 @@ In repository settings enable Actions and Packages. Protect `main` and require t
 When a tested version is ready:
 
 ```bash
-git tag v0.6.1
-git push origin v0.6.1
+git tag v0.6.2
+git push origin v0.6.2
 ```
 
-`Release Docker image` runs the complete CI again, checks that the tag agrees with both Cargo and npm versions, and publishes `ghcr.io/devops-nechaev/relayix:0.6.1` and `:beta`. It uses the repository-scoped `GITHUB_TOKEN` with `packages:write`; no personal token is required for publication. It includes source/revision labels, build provenance and an SBOM. Tags are beta releases; the pipeline deliberately does not label them `latest`.
+`Release Docker image` runs the complete CI again, checks that the tag agrees with both Cargo and npm versions, and publishes `ghcr.io/devops-nechaev/relayix:0.6.2` and `:beta`. It uses the repository-scoped `GITHUB_TOKEN` with `packages:write`; no personal token is required for publication. It includes source/revision labels, build provenance and an SBOM. Tags are beta releases; the pipeline deliberately does not label them `latest`.
 
 Container package visibility is controlled in GitHub Packages. For anonymous pulls set the package public. For private pulls authenticate on the deployment host with a token allowed to read that package; do not commit the credential.
 
@@ -59,7 +59,7 @@ Use **Variables** for nonsecret configuration:
 
 `Deploy release` is a manual workflow on the default branch, targeting a dedicated Linux x64 runner labelled `relayix-deploy`. That trusted runner needs Docker Compose v2, Bash and Python 3 and access to the deployment host. Pull requests and CI run on GitHub-hosted runners, not that server.
 
-The workflow renders a candidate JSON from Secrets/Variables in `RUNNER_TEMP`, then backs up the active private configuration/database, pulls the image, checks that the candidate database password agrees with the existing one, replaces only the app and verifies health. On failure it restores the previous app configuration. It removes the temporary candidate and registry login afterwards. Active private configuration remains outside the checkout for service restarts and backup operations.
+The workflow renders a candidate JSON from Secrets/Variables in `RUNNER_TEMP`, then backs up the active private configuration/database, pulls the image, checks that the candidate database password agrees with the existing one, updates the image in `compose.app.yaml`, replaces only the app and verifies health. On failure it restores the previous private settings and Compose image. It removes the temporary candidate and registry login afterwards. Active private configuration remains outside the checkout for service restarts and backup operations.
 
 For manual operation, use `scripts/compose.sh`; it loads the private JSON into the Docker process environment and disables dotenv discovery. There is no production `.env` in the repository. Deployment credentials must not be put into repository Variables, workflow YAML, image build arguments, test fixtures or CI artifacts.
 

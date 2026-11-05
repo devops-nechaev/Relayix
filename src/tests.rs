@@ -10,7 +10,7 @@ fn monitoring_periods_are_bounded_and_precise() {
 
 #[test]
 fn generated_endpoints_are_valid_and_unique() {
-    for name in ["Deploy alerts", "Уведомления", "", "   ", "a/b?secret=1", &"Very long name ".repeat(20)] {
+    for name in ["Deploy alerts", "Alerts \u{2603}", "", "   ", "a/b?secret=1", &"Very long name ".repeat(20)] {
         let first=generated_slug(name,Uuid::new_v4());
         let second=generated_slug(name,Uuid::new_v4());
         assert!(slug_valid(&first));assert!(slug_valid(&second));assert_ne!(first,second);
@@ -97,9 +97,9 @@ fn secrets_survive_masked_edits_and_can_be_replaced_or_cleared() {
 fn smtp_sender_names_preserve_legacy_mailboxes_and_reject_header_injection() {
     let mut cfg=smtp();
     assert_eq!(providers::smtp_sender(&cfg).unwrap().name.as_deref(),Some("Relayix"));
-    cfg["from_name"]=json!("  Оповещения Relayix  ");
+    cfg["from_name"]=json!("  Relayix Alerts \u{2709}  ");
     let sender=providers::smtp_sender(&cfg).unwrap();
-    assert_eq!(sender.name.as_deref(),Some("Оповещения Relayix"));
+    assert_eq!(sender.name.as_deref(),Some("Relayix Alerts \u{2709}"));
     assert_eq!(sender.email.to_string(),"alerts@example.org");
     for name in [json!("bad\r\nBcc: evil@example.org"),json!("x".repeat(101)),json!(42)] {
         cfg["from_name"]=name;assert!(valid_config("smtp",&cfg,false).is_err());

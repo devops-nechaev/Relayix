@@ -3,11 +3,12 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 export RELAYIX_TEST_PROJECT="${RELAYIX_TEST_PROJECT:-relayix-test-${GITHUB_RUN_ID:-local}-$$}"
 [[ "$RELAYIX_TEST_PROJECT" == relayix-test-* ]] || { echo 'Test project must start with relayix-test-' >&2; exit 1; }
-export RELAYIX_TEST_IMAGE="${RELAYIX_TEST_IMAGE:-relayix:0.6.1}"
-export RELAYIX_TEST_CHECKS_IMAGE="${RELAYIX_TEST_CHECKS_IMAGE:-relayix-checks:0.6.1}"
-export RELAYIX_TEST_BROWSER_IMAGE="${RELAYIX_TEST_BROWSER_IMAGE:-relayix-browser:0.6.1}"
+export RELAYIX_TEST_IMAGE="${RELAYIX_TEST_IMAGE:-relayix:0.6.2}"
+export RELAYIX_TEST_CHECKS_IMAGE="${RELAYIX_TEST_CHECKS_IMAGE:-relayix-checks:0.6.2}"
+export RELAYIX_TEST_BROWSER_IMAGE="${RELAYIX_TEST_BROWSER_IMAGE:-relayix-browser:0.6.2}"
 export RELAYIX_TEST_ARTIFACTS="${RELAYIX_TEST_ARTIFACTS:-/tmp/relayix-test-artifacts}"
 mkdir -p "$RELAYIX_TEST_ARTIFACTS"
+python3 scripts/check_release.py
 python3 tests/runtime_security.py
 python3 tests/compose_modes.py
 export RELAYIX_TEST_RUNTIME_DIR

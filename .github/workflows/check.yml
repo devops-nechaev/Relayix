@@ -37,6 +37,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
+          pull: true
           load: true
           tags: relayix:ci
           cache-from: type=gha

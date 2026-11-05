@@ -1,54 +1,48 @@
-# Запуск Relayix через Docker Compose
+# Run Relayix with Docker Compose
 
-Все переменные установки задаются **в одном файле**:
+Set application and database variables in **one private file**:
 
 ```text
 ../private/relayix-config/deployment.json
 ```
 
-Путь указан относительно папки репозитория. Файл создаёт `scripts/write_config.py`; редактировать Compose-файлы и создавать `.env` не нужно. Пароли и токены остаются вне Git. Все значения в JSON записывайте строками, включая порты и `true`/`false`.
+The path is relative to the repository directory. `scripts/write_config.py` creates this file with private permissions. Use JSON strings for every value, including ports and booleans. No `.env` file is required. The application image is selected separately in **`compose.app.yaml`**.
 
-## 1. Подготовить образ
+## 1. Prepare the image
 
-Нужны Git, Docker Engine с Docker Compose v2, Python 3.10+ и доступ пользователя к Docker.
+Install Git, Docker Engine with Docker Compose v2, and Python 3.10+. Your user must have access to Docker. Rust and Node.js run inside the build containers.
 
 ```bash
 git clone https://github.com/devops-nechaev/Relayix.git
 cd Relayix
 docker compose version
+docker build --pull -t ghcr.io/devops-nechaev/relayix:0.6.2 .
 ```
 
-Соберите образ из текущих исходников. Rust и Node.js на хост устанавливать не требуется: сборка выполняется внутри Docker.
+When the release image is published to GHCR, use `docker pull ghcr.io/devops-nechaev/relayix:0.6.2` instead of building. The image in `compose.app.yaml` must match the tag you build or pull. See [GitHub releases](GITHUB.md) for registry publication.
 
-```bash
-docker build --pull -t relayix:0.6.1 .
-```
+## 2. Choose the database location
 
-Если у вас уже есть опубликованный образ в реестре, вместо сборки выполните `docker pull` для его адреса и укажите этот адрес в `RELAYIX_IMAGE` в приватном JSON. Локальный тег `relayix:0.6.1` сам по себе не скачивает образ из GitHub. GHCR-публикация описана в [GITHUB.md](GITHUB.md).
-
-## 2. Выбрать, где находится PostgreSQL
-
-| Вариант | `DATABASE_MODE` | Что запустит Compose |
+| Database location | `DATABASE_MODE` | Services started by Compose |
 | --- | --- | --- |
-| Новая PostgreSQL в этой же установке Compose | `local` | `app` и `db`; данные в Docker volume |
-| Готовая PostgreSQL на другом сервере | `external` | Только `app` |
-| Готовая PostgreSQL на хосте Docker | `external` | Только `app`; хост базы — `host.docker.internal` |
+| New PostgreSQL database inside Compose | `local` | `app` and `db`, with persistent database storage |
+| Existing PostgreSQL on another server | `external` | `app` only |
+| Existing PostgreSQL on the Docker host | `external` | `app` only; use `host.docker.internal` |
 
-### Вариант A: база внутри Compose
+### Option A: PostgreSQL inside Compose
 
-Для **новой** установки:
+For a new installation:
 
 ```bash
 python3 scripts/write_config.py ../private/relayix-config/deployment.json --database local --generate
 nano ../private/relayix-config/deployment.json
 ```
 
-Генератор уже заполнит пароль PostgreSQL, пароль администратора и API-токен. Обычно достаточно проверить следующие поля:
+The generator fills in the database password, administrator password and administrator API token. Check these settings in the generated file:
 
 ```json
 {
   "DATABASE_MODE": "local",
-  "RELAYIX_IMAGE": "relayix:0.6.1",
   "COMPOSE_PROJECT_NAME": "relayix",
   "BIND_ADDRESS": "127.0.0.1",
   "PORT": "8080",
@@ -57,11 +51,9 @@ nano ../private/relayix-config/deployment.json
 }
 ```
 
-Это фрагмент настроек: измените соответствующие поля **в сгенерированном файле**, сохранив пароли и остальные значения. `POSTGRES_HOST`, `POSTGRES_PORT` и настройки TLS в режиме `local` не нужны: приложение подключается к `db:5432` внутри сети Compose. Порт PostgreSQL на хост не публикуется.
+This is a settings excerpt: keep the generated credentials and other fields. Local mode connects to `db:5432` inside the Compose network; `POSTGRES_HOST`, `POSTGRES_PORT` and external TLS settings are not needed. PostgreSQL is not published on a host port.
 
-`BIND_ADDRESS=127.0.0.1` открывает интерфейс только на хосте. Для доступа с другого компьютера укажите IP нужного сетевого интерфейса или `0.0.0.0` и используйте в браузере адрес сервера.
-
-Запуск:
+`BIND_ADDRESS=127.0.0.1` exposes the interface only on the Docker host. To access it from another computer, set the host's LAN IP or `0.0.0.0` and open the server's address in your browser.
 
 ```bash
 scripts/compose.sh up -d
@@ -69,20 +61,20 @@ scripts/compose.sh ps
 curl --fail http://127.0.0.1:8080/healthz
 ```
 
-Откройте `http://127.0.0.1:8080` на хосте и войдите с `ADMIN_USERNAME` / `ADMIN_PASSWORD` из приватного JSON. Если меняли адрес или порт, используйте свои значения в браузере и `curl`.
+Open `http://127.0.0.1:8080` on the Docker host. Sign in with `ADMIN_USERNAME` and `ADMIN_PASSWORD` from the private JSON. Substitute your address and port if you changed them.
 
-При повторном запуске используйте **тот же файл**, пароль, имя проекта и том. Скрипт генерации намеренно отказывается перезаписывать существующий файл. Изменение `POSTGRES_PASSWORD` в JSON не меняет пароль роли в уже созданной базе.
+Reuse the same private settings, project name and volume for an existing installation. The generator refuses to overwrite an existing file. Editing `POSTGRES_PASSWORD` does not change the password in an initialized PostgreSQL database.
 
-### Вариант B: готовая удалённая база
+### Option B: Existing external PostgreSQL
 
-На сервере PostgreSQL заранее должны существовать база и роль, которой разрешено подключение и создание/изменение объектов в этой базе. Relayix применяет SQL-миграции при запуске; саму внешнюю базу или роль он не создаёт.
+Create the database and login role on the PostgreSQL server first. The role must be able to connect and create/alter objects in the application database. Relayix applies its schema migrations automatically; it does not create an external database or role.
 
 ```bash
 python3 scripts/write_config.py ../private/relayix-config/deployment.json --database external --generate
 nano ../private/relayix-config/deployment.json
 ```
 
-Генератор создаст учётные данные администратора Relayix, но **не придумает пароль существующей базы**. Заполните эти поля в созданном файле:
+The generator creates Relayix administrator credentials but does not generate a replacement password for an existing database. Fill in these fields in the generated file; replace `CHANGE_ME` with the actual database password:
 
 ```json
 {
@@ -91,15 +83,15 @@ nano ../private/relayix-config/deployment.json
   "POSTGRES_PORT": "5432",
   "POSTGRES_USER": "relayix",
   "POSTGRES_DB": "relayix",
-  "POSTGRES_PASSWORD": "REPLACE_WITH_THE_EXISTING_DATABASE_PASSWORD",
+  "POSTGRES_PASSWORD": "CHANGE_ME",
   "POSTGRES_SSLMODE": "verify-full",
   "POSTGRES_SSLROOTCERT": ""
 }
 ```
 
-Указывайте в `POSTGRES_HOST` только имя или IP, без `postgres://`, порта и пути. Пароль вводится обычной JSON-строкой; URL-кодирование символов `@`, `#`, `%` и других скрипт выполнит сам.
+Enter only a hostname or IP in `POSTGRES_HOST`, without a URL scheme, port or path. Enter the password as an ordinary JSON string; the wrapper handles URL encoding for characters such as `@`, `#` and `%`.
 
-Если провайдер выдал CA-сертификат, сохраните его на Docker-хосте и задайте **абсолютный путь**:
+If your provider supplies a CA certificate, save its public certificate on the Docker host and set its absolute path:
 
 ```json
 {
@@ -107,11 +99,11 @@ nano ../private/relayix-config/deployment.json
 }
 ```
 
-Используется публичный сертификат CA, не приватный ключ. Файл должен быть доступен для чтения пользователю контейнера. Скрипт подключит его только для чтения к приложению и инструментам базы. При `verify-full` имя `POSTGRES_HOST` должно соответствовать сертификату сервера. Без своего CA используются доверенные корневые сертификаты клиента.
+The certificate file must be readable by the container user. The wrapper mounts it read-only into the app and database tools. With `verify-full`, `POSTGRES_HOST` must match the server certificate. Without a custom CA file, the clients use their trusted root certificates.
 
-`verify-full` проверяет TLS и имя сервера. Если сервер намеренно работает без TLS в доверенной сети, явно задайте `POSTGRES_SSLMODE=disable`. Доступны также `require`, `verify-ca`, `prefer` и `allow`; для `verify-ca` укажите CA-файл. Значение `require` шифрует соединение, но не заменяет проверку имени сервера. [Режимы TLS PostgreSQL](https://www.postgresql.org/docs/17/libpq-ssl.html).
+`verify-full` verifies TLS and the server name. For a server deliberately configured without TLS on a trusted network, explicitly set `POSTGRES_SSLMODE=disable`. Other supported values are `require`, `verify-ca`, `prefer` and `allow`; `verify-ca` requires a CA file. `require` encrypts traffic but does not verify the server name. See [PostgreSQL TLS modes](https://www.postgresql.org/docs/17/libpq-ssl.html).
 
-После заполнения настроек команды такие же:
+Start with the same commands:
 
 ```bash
 scripts/compose.sh up -d
@@ -120,11 +112,11 @@ scripts/compose.sh logs --tail=50 app
 curl --fail http://127.0.0.1:8080/healthz
 ```
 
-В этом режиме сервис `db` и локальный том базы не создаются. Режим выбирается автоматически из JSON; дополнительных флагов Compose не требуется.
+External mode creates no bundled database service or database volume. The wrapper selects the correct Compose file automatically.
 
-### База установлена на том же хосте, вне Docker
+### PostgreSQL installed on the Docker host
 
-Используйте вариант B со следующими значениями:
+Use external mode with these values:
 
 ```json
 {
@@ -134,19 +126,19 @@ curl --fail http://127.0.0.1:8080/healthz
 }
 ```
 
-`localhost` / `127.0.0.1` внутри контейнера указывают на сам контейнер приложения. Имя `host.docker.internal` направлено на хост Docker; для Linux в Compose добавлен `host-gateway`.
+`localhost` inside a container refers to that container. `host.docker.internal` addresses the Docker host; the Compose files add `host-gateway` support on Linux.
 
-PostgreSQL на хосте должен слушать адрес, доступный из Docker, а `pg_hba.conf` и сетевой экран — разрешать роль/базу и подсеть Docker. Если PostgreSQL слушает только `127.0.0.1`, контейнер к нему не подключится. Настройки TLS выбираются по конфигурации этого PostgreSQL.
+The host database must listen on an interface reachable from Docker. Its `pg_hba.conf` and firewall must allow the database role and Docker subnet. A PostgreSQL server listening only on `127.0.0.1` cannot accept this connection. Select TLS settings to match the server configuration.
 
-## 3. Проверить подключение и сделать копию
+## Check the connection and back up
 
-Проверка SQL работает в обоих режимах:
+These commands work in both database modes:
 
 ```bash
 scripts/compose.sh run --rm --no-deps -T db-tools psql -X -c 'SELECT current_database(), current_user;'
 ```
 
-Для резервной копии:
+Create a database backup:
 
 ```bash
 mkdir -p ../private/relayix-backups
@@ -155,39 +147,47 @@ umask 077
 scripts/compose.sh run --rm --no-deps -T db-tools pg_dump -Fc > "../private/relayix-backups/manual-$(date +%Y%m%d-%H%M%S).dump"
 ```
 
-`db-tools` — одноразовый клиент с профилем `tools`: обычный `up -d` его не запускает. Он использует те же host/user/password/TLS, что и приложение. Пароли не нужно передавать в командной строке. Образ клиента по умолчанию — PostgreSQL 17.11; для сервера новее 17 укажите соответствующий или более новый `POSTGRES_CLIENT_IMAGE`, например `postgres:18.6-trixie` для PostgreSQL 18. `pg_dump` не поддерживает сервер старше себя по основной версии.
+`db-tools` is a one-off client in the `tools` profile; ordinary `up -d` does not start it. It uses the same connection and TLS settings as the app. Its default PostgreSQL client version is 17.11. For a newer server, set a matching or newer `POSTGRES_CLIENT_IMAGE`, such as `postgres:18.6-trixie` for PostgreSQL 18. `pg_dump` cannot dump a server with a newer major version than its own.
 
-Для восстановления используйте `pg_restore` из того же сервиса. Перед восстановлением остановите приложение и убедитесь, что выбрана нужная целевая база. Подробности переноса существующей установки — в [UPGRADE.md](../UPGRADE.md).
+## Settings reference
 
-## Основные переменные
-
-| Переменная | Назначение |
+| Variable | Purpose |
 | --- | --- |
-| `DATABASE_MODE` | `local` или `external`; по умолчанию `local` |
-| `POSTGRES_HOST` / `POSTGRES_PORT` | Адрес и порт внешней базы; порт по умолчанию `5432` |
-| `POSTGRES_USER` / `POSTGRES_DB` | Роль и база; по умолчанию `relayix` |
-| `POSTGRES_PASSWORD` | Пароль роли; автоматически создаётся только для новой локальной базы |
-| `POSTGRES_SSLMODE` | Для внешней базы по умолчанию `verify-full`; локально используется `disable` |
-| `POSTGRES_SSLROOTCERT` | Необязательный абсолютный путь к CA-сертификату на Docker-хосте |
-| `POSTGRES_CLIENT_IMAGE` | Образ клиента для `psql` и резервных копий |
-| `POSTGRES_IMAGE` | Образ встроенной базы; применяется только при `local` |
-| `RELAYIX_DB_VOLUME` | Имя существующего локального тома; без настройки используется `<project>_db_data` |
-| `RELAYIX_IMAGE` | Доступный локально или опубликованный образ приложения |
-| `COMPOSE_PROJECT_NAME` | Имя установки Compose; не меняйте для существующего локального тома без переноса данных |
-| `BIND_ADDRESS` / `PORT` | Адрес и порт публикации веб-интерфейса |
-| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | Первый администратор; пароль применяется при создании учётной записи |
-| `ADMIN_TOKEN` | Необязательный административный токен API; генератор создаёт его автоматически |
-| `COOKIE_SECURE` | `true` для доступа через HTTPS; `false` для прямого HTTP |
-| `TELEGRAM_API_ID` / `TELEGRAM_API_HASH` | Нужны для Telegram MTProto/WEB; для обычного Bot API не требуются |
+| `DATABASE_MODE` | `local` or `external`; defaults to `local` |
+| `POSTGRES_HOST` / `POSTGRES_PORT` | External database address and port; default port `5432` |
+| `POSTGRES_USER` / `POSTGRES_DB` | Role and database; both default to `relayix` |
+| `POSTGRES_PASSWORD` | Existing database password, or generated password for a new bundled database |
+| `POSTGRES_SSLMODE` | Defaults to `verify-full` externally; local connections use `disable` |
+| `POSTGRES_SSLROOTCERT` | Optional absolute path to a CA certificate on the Docker host |
+| `POSTGRES_CLIENT_IMAGE` | PostgreSQL image for SQL checks and backups |
+| `POSTGRES_IMAGE` | Bundled database image; used only in local mode |
+| `RELAYIX_DB_VOLUME` | Existing local volume name; defaults to `<project>_db_data` |
+| `COMPOSE_PROJECT_NAME` | Compose installation name; keep it stable for existing data |
+| `BIND_ADDRESS` / `PORT` | Address and port publishing the web interface |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | Bootstrap administrator; used when creating the account |
+| `ADMIN_TOKEN` | Optional administrator API token; generated automatically |
+| `COOKIE_SECURE` | `true` behind HTTPS; `false` for direct HTTP |
+| `TELEGRAM_API_ID` / `TELEGRAM_API_HASH` | Required for Telegram MTProto/WEB; ordinary Bot API delivery does not need them |
 
-Нестандартное расположение единственного файла настроек выбирается так:
+To use another private settings path:
 
 ```bash
 export RELAYIX_CONFIG_FILE=/srv/relayix-private/deployment.json
 scripts/compose.sh up -d
 ```
 
-## Обычные операции
+## Updating
+
+Change the app image tag in `compose.app.yaml`, then run:
+
+```bash
+scripts/compose.sh pull app
+scripts/compose.sh up -d --no-deps app
+```
+
+Database migrations run automatically. Keep the same database settings and data volume.
+
+## Common operations
 
 ```bash
 scripts/compose.sh logs -f app
@@ -196,4 +196,4 @@ scripts/compose.sh stop
 scripts/compose.sh up -d
 ```
 
-После изменения переменных используйте `up -d`: `restart` не обновляет окружение контейнера. Для существующего локального тома не используйте `down -v`, если хотите сохранить данные. Переключение `local` → `external` не переносит данные автоматически: сначала сделайте копию и восстановите её в выбранной внешней базе.
+After changing private settings, use `up -d` to recreate affected containers; `restart` does not reload their environment. Avoid `down -v` when retaining local data. Changing database mode or host does not transfer existing data automatically.

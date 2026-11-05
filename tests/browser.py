@@ -49,7 +49,7 @@ with sync_playwright() as p:
     expect(page.get_by_role('button', name='Templates', exact=True)).to_have_count(0)
     failed_card = page.get_by_role('button', name=re.compile('Failed deliveries'))
     expect(failed_card).to_be_visible()
-    assert int(failed_card.locator('strong').inner_text()) >= 2
+    expect(failed_card.locator('strong')).to_have_text(re.compile(r'^(?:[2-9]|[1-9][0-9]+)$'))
     refresh()
     expect(page.locator('.refresh-control')).to_contain_text('Updated')
     page.route('**/api/stats?*', lambda route: route.fulfill(status=500, content_type='application/json', body='{"error":"Simulated refresh failure"}'))

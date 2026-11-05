@@ -1,0 +1,4 @@
+# Explicit image override for release automation and isolated tests.
+services:
+  app:
+    image: ${RELAYIX_IMAGE_OVERRIDE:?set an explicit app image}

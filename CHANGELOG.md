@@ -1,19 +1,15 @@
 # Changelog
 
-## Unreleased — 2026-11-05
+## 0.6.2 Beta — 2026-11-05
 
-- Document Compose startup with bundled, remote and host PostgreSQL using one private JSON file; select local/external Compose automatically and support shared database clients and custom CA certificates.
-
-- Move application, builders and test containers to Debian Trixie with stable package updates; use Rust 1.99.1, Node.js 26.13.0 LTS, Python 3.15.2 and PostgreSQL 17.11.
-- Refresh stable Rust, npm and Python dependencies and license inventories; adapt Argon2, rand, SQLx and Reqwest APIs and refresh Playwright.
-- Allow explicit PostgreSQL image/data-volume selection for verified transfers between base distributions.
-
-- Finish the Relayix rename across Compose, PostgreSQL defaults, browser storage/session cookies, scripts and documentation. Preserve applied migration checksums and update failure-alert branding in a new migration.
-
-- Compact channel rows show destination, connection, status and actions without credential placeholders.
-- Use the official Mattermost SVG logomark with its source notice.
-- Configure Telegram application credentials once per server, retain channel overrides and use zero access hashes for bot destinations.
-- Add dashboard and channel screenshots with demonstration data to the README.
+- Use Debian Trixie throughout application, build and test images with Rust 1.99.1, Node.js 26.13.0 LTS, Python 3.15.2 and PostgreSQL 17.11.
+- Update stable Rust and npm dependencies, regenerate Python locks for Python 3.15, and refresh dependency licenses and Playwright.
+- Support bundled, external and host PostgreSQL through one private settings file, including custom CA certificates and database backup tools.
+- Keep the application image in `compose.app.yaml`; update by changing its tag and recreating only the app. Preserve database settings and data volumes.
+- Provide English-only setup and release documentation, presentation screenshots and tested local/external/TLS startup examples.
+- Compact channel rows and use the official Mattermost logomark with its source notice.
+- Configure Telegram application credentials once per server and resolve bot destinations without manually entered access hashes.
+- Complete Relayix naming across Compose, database defaults, browser storage and session cookies while preserving applied migrations.
 
 ## 0.6.1 Beta — 2026-11-04
 

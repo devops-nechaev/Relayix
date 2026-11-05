@@ -60,7 +60,7 @@ def main():
     api = Client(TOKEN)
     for _ in range(90):
         try:
-            if api.ok('/healthz')['version'] == '0.6.1':
+            if api.ok('/healthz')['version'] == '0.6.2':
                 break
         except (URLError, AssertionError):
             time.sleep(1)
@@ -133,7 +133,7 @@ def main():
 
     configs = {
         'matrix': {'url': 'http://mock:8000', 'room_id': '!room:example.org', 'access_token': credentials['matrix_token']},
-        'smtp': {'host': 'mock', 'port': '1025', 'tls': 'none', 'from': 'alerts@example.org', 'from_name': 'Relayix Оповещения', 'to': 'ops@example.org'},
+        'smtp': {'host': 'mock', 'port': '1025', 'tls': 'none', 'from': 'alerts@example.org', 'from_name': 'Relayix Alerts \u2709', 'to': 'ops@example.org'},
         'ntfy': {'url': 'http://mock:8000', 'topic': 'alerts'},
         'gotify': {'url': 'http://mock:8000', 'token': credentials['gotify_token']},
     }
@@ -245,7 +245,7 @@ def main():
     warnings = [json.loads(r['body']) for r in received if r.get('path') == '/alert-receiver']
     assert any('2 failures via Failing route' in w['message'] for w in warnings)
     mails = [Parser(policy=policy.default).parsestr(r['body']) for r in received if r['method'] == 'SMTP']
-    assert any(m['From'].addresses[0].display_name == 'Relayix Оповещения' and m['From'].addresses[0].addr_spec == 'alerts@example.org' for m in mails)
+    assert any(m['From'].addresses[0].display_name == 'Relayix Alerts \u2709' and m['From'].addresses[0].addr_spec == 'alerts@example.org' for m in mails)
     assert any(m['Subject'] == 'Ready' and 'Deployment successful' in m.get_content() for m in mails)
     assert any(m['Subject'] == 'Delivery warning: Broken webhook' for m in mails)
     # Exercise both bot/API destinations without contacting a real Mattermost installation.

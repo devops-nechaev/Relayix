@@ -12,22 +12,26 @@ export RELAYIX_HEALTH_URL="${RELAYIX_HEALTH_URL:-http://127.0.0.1:8080/healthz}"
 export RELAYIX_CONFIG_FILE="${RELAYIX_CONFIG_FILE:-$PWD/../private/relayix-config/deployment.json}"
 test -f "$RELAYIX_CONFIG_FILE"
 compose=("$PWD/scripts/compose.sh")
-unset RELAYIX_IMAGE
+unset RELAYIX_IMAGE RELAYIX_IMAGE_OVERRIDE
 umask 077
 backup_root="${RELAYIX_BACKUP_DIR:-../private/relayix-backups}"
 mkdir -p "$backup_root"
 chmod 700 "$backup_root"
 stamp="$(date -u +%Y%m%d-%H%M%S)-$$"
 backup_env="$backup_root/config-before-deploy-$stamp.json"
+backup_compose="$backup_root/compose-before-deploy-$stamp.yaml"
 cp "$RELAYIX_CONFIG_FILE" "$backup_env"
+cp compose.app.yaml "$backup_compose"
 "${compose[@]}" run --rm --no-deps -T db-tools pg_dump -Fc > "$backup_root/db-before-deploy-$stamp.dump"
 # Pull before changing the running service or its persistent configuration.
 RELAYIX_IMAGE_OVERRIDE="$RELAYIX_DEPLOY_IMAGE" "${compose[@]}" pull app
 export RELAYIX_DEPLOY_BACKUP_ENV="$backup_env"
+export RELAYIX_DEPLOY_BACKUP_COMPOSE="$backup_compose"
 rollback() {
   status=$?
   trap - ERR
   cp "$RELAYIX_DEPLOY_BACKUP_ENV" "$RELAYIX_CONFIG_FILE"
+  cp "$RELAYIX_DEPLOY_BACKUP_COMPOSE" compose.app.yaml
   chmod 600 "$RELAYIX_CONFIG_FILE"
   "${compose[@]}" up -d --no-deps app || true
   echo 'Deployment failed; previous environment restored and previous app restart requested.' >&2
@@ -35,7 +39,7 @@ rollback() {
 }
 trap rollback ERR
 python3 - <<'PY'
-import json, os, subprocess
+import json, os, re
 from pathlib import Path
 path=Path(os.environ['RELAYIX_CONFIG_FILE'])
 config=json.loads(path.read_text())
@@ -49,7 +53,12 @@ if candidate:
     if any(current_db[key]!=candidate_db[key] for key in ['mode','host','port','user','database']):
         raise SystemExit('Database destination differs from the active deployment; transfer data before switching databases')
     config=incoming
-config['RELAYIX_IMAGE']=os.environ['RELAYIX_DEPLOY_IMAGE']
+config.pop('RELAYIX_IMAGE',None)
+compose_path=Path('compose.app.yaml')
+text=compose_path.read_text()
+text,count=re.subn(r'(?m)^(    image:) .+$',lambda match:match[1]+' '+os.environ['RELAYIX_DEPLOY_IMAGE'],text,count=1)
+if count!=1:raise SystemExit('App image declaration was not found in compose.app.yaml')
+compose_path.write_text(text)
 config['COMPOSE_PROJECT_NAME']=os.environ['COMPOSE_PROJECT_NAME']
 path.write_text(json.dumps(config,indent=2)+'\n');path.chmod(0o600)
 PY

@@ -16,6 +16,8 @@ if args.base:
     base=Path(args.base).resolve()
     if base.is_relative_to(ROOT):raise SystemExit('Base config must be outside checkout')
     config.update(json.loads(base.read_text()))
+# The app image is selected in compose.app.yaml, not in private settings.
+config.pop('RELAYIX_IMAGE',None)
 keys=set(config)|{'POSTGRES_PASSWORD','ADMIN_TOKEN','ADMIN_PASSWORD'}
 for key in keys:
     if os.environ.get(key):config[key]=os.environ[key]

@@ -1,6 +1,5 @@
 {
   "DATABASE_MODE": "local",
-  "RELAYIX_IMAGE": "relayix:0.6.1",
   "COMPOSE_PROJECT_NAME": "relayix",
   "BIND_ADDRESS": "127.0.0.1",
   "PORT": "8080",

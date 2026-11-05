@@ -3,7 +3,7 @@ from pathlib import Path
 from urllib.request import build_opener,ProxyHandler,Request
 import json,os,secrets,socket,subprocess,sys,tempfile,time
 ROOT=Path(__file__).resolve().parents[1]
-IMAGE=os.environ.get('RELAYIX_TEST_IMAGE','relayix:0.6.1')
+IMAGE=os.environ.get('RELAYIX_TEST_IMAGE','relayix:0.6.2')
 PG_IMAGE='postgres:17.11-trixie'
 
 def free_port():
@@ -16,7 +16,7 @@ def exercise(mode,folder):
  config_path=folder/(mode+'.json')
  subprocess.run([sys.executable,str(ROOT/'scripts/write_config.py'),str(config_path),'--database','local' if mode=='local' else 'external','--generate'],capture_output=True,check=True)
  config=json.loads(config_path.read_text())
- config.update(RELAYIX_IMAGE=IMAGE,COMPOSE_PROJECT_NAME=project,BIND_ADDRESS='127.0.0.1',PORT=free_port())
+ config.update(COMPOSE_PROJECT_NAME=project,BIND_ADDRESS='127.0.0.1',PORT=free_port())
  config['POSTGRES_PASSWORD']=secrets.token_hex(24)+'@:#%/\'"$'
  config['POSTGRES_USER']='relayix';config['POSTGRES_DB']='relayix'
  network=project+'-network';server=project+'-postgres'
@@ -36,6 +36,7 @@ def exercise(mode,folder):
  config_path.write_text(json.dumps(config));config_path.chmod(0o600)
  env={k:v for k,v in os.environ.items() if k not in ['RELAYIX_IMAGE_OVERRIDE','RELAYIX_COMPOSE_PROJECT','RELAYIX_CONFIG_FILE']}
  env['RELAYIX_CONFIG_FILE']=str(config_path)
+ env['RELAYIX_IMAGE_OVERRIDE']=IMAGE
  args=[str(ROOT/'scripts/compose.sh')]
  if mode!='local':
   override.write_text('networks:\n  default:\n    external: true\n    name: '+network+'\n')
