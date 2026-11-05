@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
-      contents: read
+      contents: write
       packages: write
     steps:
       - uses: actions/checkout@v7
@@ -74,3 +74,18 @@ jobs:
           cache-to: type=gha,mode=max
           provenance: true
           sbom: true
+      - name: Publish standalone Compose downloads
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          if [[ ! -f deploy/compose.yaml ]]; then
+            echo "This historical tag has no standalone Compose bundle."
+            exit 0
+          fi
+          tag="v$VERSION"
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" --verify-tag --prerelease --title "Relayix $VERSION Beta" --generate-notes
+          fi
+          gh release upload "$tag" deploy/compose.yaml deploy/compose.external.yaml deploy/compose.tls.yaml deploy/relayix.env.example --clobber

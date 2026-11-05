@@ -1,40 +1,38 @@
 # Relayix 0.6.2 Beta
 
-A self-hosted notification hub: Rust / Axum / React / PostgreSQL. English interface, light and dark themes. Docker Compose runs the application with bundled or external PostgreSQL. Build the image in Docker or use a published image; application and database settings live in one private JSON file, with the image tag selected in Compose.
+A self-hosted notification hub: Rust / Axum / React / PostgreSQL. English interface, light and dark themes.
 
 ## Docker Compose quick start
 
-Set application and database variables in **one private JSON file**: `../private/relayix-config/deployment.json`. Select the app image in **`compose.app.yaml`**. See the [complete setup guide](docs/DEPLOYMENT.md) for bundled, external and host PostgreSQL.
-
-For a new installation with bundled PostgreSQL:
+You only need **Docker with Compose v2**. Download the ready-to-run files:
 
 ```bash
-git clone https://github.com/devops-nechaev/Relayix.git
-cd Relayix
-docker build --pull -t ghcr.io/devops-nechaev/relayix:0.6.2 .
-python3 scripts/write_config.py ../private/relayix-config/deployment.json --database local --generate
-nano ../private/relayix-config/deployment.json
-scripts/compose.sh up -d
-scripts/compose.sh ps
-curl --fail http://127.0.0.1:8080/healthz
+mkdir relayix && cd relayix
+curl -fL https://github.com/devops-nechaev/Relayix/releases/download/v0.6.2/compose.yaml -o compose.yaml
+curl -fL https://github.com/devops-nechaev/Relayix/releases/download/v0.6.2/relayix.env.example -o .env
 ```
 
-Open `http://127.0.0.1:8080` on the Docker host and sign in with the generated `ADMIN_USERNAME` / `ADMIN_PASSWORD`. Set `BIND_ADDRESS` to a LAN address or `0.0.0.0` for access from another computer.
+Open `.env` and set **`POSTGRES_PASSWORD`** and **`ADMIN_PASSWORD`** to your own passwords. Keep the single quotes around passwords. The administrator password needs 12–128 characters, uppercase/lowercase letters, a number and a symbol.
 
-For an existing PostgreSQL server, generate settings with `--database external --generate`, then fill in `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, `POSTGRES_DB`, the existing `POSTGRES_PASSWORD` and TLS settings. Run the same `scripts/compose.sh up -d`; no bundled database starts. For PostgreSQL on the Docker host, use `POSTGRES_HOST=host.docker.internal`. [External database example](docs/DEPLOYMENT.md#option-b-existing-external-postgresql).
+```bash
+chmod 600 .env
+docker compose up -d
+```
 
-The host needs Docker Compose v2 and Python 3.10+; Rust and Node.js run in Docker. Once the release image is published, pull the image selected in Compose instead of building it. See [GitHub/GHCR publication](docs/GITHUB.md).
+Open **`http://SERVER_IP:8080`** and sign in as **`admin`** with the `ADMIN_PASSWORD` you chose. Replace `SERVER_IP` with the IP address of your Docker host. Compose downloads the published image and starts Relayix and PostgreSQL automatically. Database data is stored in a persistent Docker volume.
+
+For an **existing PostgreSQL server**, download [compose.external.yaml](https://github.com/devops-nechaev/Relayix/releases/download/v0.6.2/compose.external.yaml) as `compose.yaml` instead. In `.env`, set `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, `POSTGRES_DB`, the existing `POSTGRES_PASSWORD` and `POSTGRES_SSLMODE`. Then run the same `docker compose up -d`. See the [setup guide](docs/DEPLOYMENT.md) for a complete example and TLS settings.
 
 ## Updating
 
-Change the app image tag in `compose.app.yaml`, then run:
+Change the app image tag in your `compose.yaml`, then run:
 
 ```bash
-scripts/compose.sh pull app
-scripts/compose.sh up -d --no-deps app
+docker compose pull app
+docker compose up -d --no-deps app
 ```
 
-Schema migrations run automatically; database settings and data volumes stay in place.
+Schema migrations run automatically. Keep your `.env`, Compose project name and database volume.
 
 ## Screenshots
 
@@ -52,7 +50,7 @@ The screenshots use demonstration data and show the current interface.
 
 Application, build and test images use Debian 13 Trixie. The verified toolchain is Rust 1.99.1, Node.js 26.13.0 LTS and Python 3.15.2; PostgreSQL uses the maintained 17.11 release on Trixie. Debian packages are upgraded from stable repositories during application/test image builds. Cargo, npm and Python dependencies are locked, and Python packages retain mandatory artifact hashes.
 
-The November 2026 refresh includes React 19.3.1, Vite 8.3.6, Lucide 1.69.0, SQLx 0.9.0, Reqwest 0.13.5, Argon2 0.6.0 and rand 0.10.3. Keep the existing database image and data volume when updating the app. `RELAYIX_DB_VOLUME` selects an existing named data volume; keep that setting in the private deployment JSON after a transfer.
+The November 2026 refresh includes React 19.3.1, Vite 8.3.6, Lucide 1.69.0, SQLx 0.9.0, Reqwest 0.13.5, Argon2 0.6.0 and rand 0.10.3. Keep the existing database image and data volume when updating the app. `RELAYIX_DB_VOLUME` selects an existing named data volume; keep that setting in the private deployment JSON for installations managed by the deployment scripts.
 
 ## Accounts and profiles
 
@@ -85,7 +83,7 @@ Refresh makes uncached requests, shows progress, updates the last refresh time a
 
 ## Channels and routing
 
-All channels support an authenticated **HTTP proxy** with an IP/DNS host, port, login and password. HTTPS and SMTP use CONNECT; proxy failure never silently falls back to direct delivery. Telegram also offers **MTProto** and native **WEB-proxy** modes using application credentials configured once on the server (`TELEGRAM_API_ID` / `TELEGRAM_API_HASH` in the private deployment JSON). The proxy provider supplies only host, port and secret; MTProto authorization separately requires these application credentials. Bot chat access hashes are handled automatically. MTProto supports plain/dd and ee FakeTLS secrets with an SNI domain; WEB supports plain/dd. WEB base paths are explicitly rejected. See [proxy configuration and verification limits](docs/PROXIES.md).
+All channels support an authenticated **HTTP proxy** with an IP/DNS host, port, login and password. HTTPS and SMTP use CONNECT; proxy failure never silently falls back to direct delivery. Telegram also offers **MTProto** and native **WEB-proxy** modes using application credentials configured once on the server (`TELEGRAM_API_ID` / `TELEGRAM_API_HASH` in `.env`). The proxy provider supplies only host, port and secret; MTProto authorization separately requires these application credentials. Bot chat access hashes are handled automatically. MTProto supports plain/dd and ee FakeTLS secrets with an SNI domain; WEB supports plain/dd. WEB base paths are explicitly rejected. See [proxy configuration and verification limits](docs/PROXIES.md).
 
 Dashboard and delivery history show the destination service icon beside the channel name.
 

@@ -31,7 +31,9 @@ class ConnectionTcpMTProxyFakeTLS(ConnectionTcpMTProxyRandomizedIntermediate):
             raise ValueError('FakeTLS requires an explicit proxy')
         self._tls_key, self._tls_domain = parse_secret(proxy[2])
         super().__init__(ip, port, dc_id, loggers=loggers,
-                         proxy=(proxy[0], proxy[1], self._tls_key.hex()), local_addr=local_addr)
+                         # Telethon strips a leading dd/ee marker from hex strings. Always
+                         # supply the randomized-intermediate marker so all 16 key bytes survive.
+                         proxy=(proxy[0], proxy[1], 'dd' + self._tls_key.hex()), local_addr=local_addr)
 
     async def _connect(self, timeout=None, ssl=None):
         writer = None
