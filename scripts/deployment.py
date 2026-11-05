@@ -77,11 +77,11 @@ def compose_environment(config):
                PGSSLROOTCERT=CA_PATH if db['ca'] else ('system' if db['sslmode'] == 'verify-full' else ''))
     if 'RELAYIX_COMPOSE_PROJECT' in os.environ:
         env['COMPOSE_PROJECT_NAME'] = os.environ['RELAYIX_COMPOSE_PROJECT']
-    files = [ROOT / ('compose.yaml' if db['mode'] == 'local' else 'compose.external.yaml')]
+    env['DATABASE_MODE'] = db['mode']
+    env['COMPOSE_PROFILES'] = db['mode']
+    env['POSTGRES_CA_PATH'] = db['ca']
+    # Only an explicit process override may select a different image.
+    env.pop('RELAYIX_IMAGE_OVERRIDE', None)
     if 'RELAYIX_IMAGE_OVERRIDE' in os.environ:
         env['RELAYIX_IMAGE_OVERRIDE'] = os.environ['RELAYIX_IMAGE_OVERRIDE']
-        files.append(ROOT / 'compose.image.yaml')
-    if db['ca']:
-        env['POSTGRES_SSLROOTCERT'] = db['ca']
-        files.append(ROOT / 'compose.tls.yaml')
-    return env, files
+    return env, [ROOT / 'compose.yaml']

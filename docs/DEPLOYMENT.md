@@ -8,8 +8,8 @@ Download two files into an empty directory:
 
 ```bash
 mkdir relayix && cd relayix
-curl -fL https://github.com/devops-nechaev/Relayix/releases/download/v0.6.2/compose.yaml -o compose.yaml
-curl -fL https://github.com/devops-nechaev/Relayix/releases/download/v0.6.2/relayix.env.example -o .env
+curl -fL https://github.com/devops-nechaev/Relayix/releases/download/v0.6.3/compose.yaml -o compose.yaml
+curl -fL https://github.com/devops-nechaev/Relayix/releases/download/v0.6.3/relayix.env.example -o .env
 ```
 
 Open `.env` in your preferred editor. Set these two values:
@@ -19,7 +19,7 @@ Open `.env` in your preferred editor. Set these two values:
 | `POSTGRES_PASSWORD` | A new password for the bundled database |
 | `ADMIN_PASSWORD` | Your Relayix login password: 12–128 characters, uppercase/lowercase letters, a number and a symbol |
 
-Keep passwords inside single quotes, for example `ADMIN_PASSWORD='your own password here'`. Single quotes preserve `$`, `#` and spaces literally. Avoid a single quote inside a single-quoted value. Database passwords are URL-encoded automatically inside the container.
+Keep passwords inside single quotes, for example `ADMIN_PASSWORD='your own password here'`. Single quotes preserve `$`, `#` and spaces literally. Avoid a single quote inside a single-quoted value. The application accepts database passwords as written, including URL-reserved characters.
 
 Start the service:
 
@@ -30,7 +30,7 @@ docker compose up -d
 
 Compose pulls the ready-made images, starts PostgreSQL, waits for it to become ready and starts Relayix. Open **`http://SERVER_IP:8080`** in your browser and sign in as **`admin`** with your `ADMIN_PASSWORD`. Schema migrations and the initial administrator account are created automatically. The first startup may take a few minutes while images download.
 
-PostgreSQL is available only inside the Compose network. Its data persists in a named Docker volume.
+The containers are named `relayix-app` and `relayix-db` and share `relayix-network`. PostgreSQL is available only inside that network. Its data persists in a named Docker volume.
 
 ## Existing external PostgreSQL
 
@@ -43,14 +43,14 @@ In `.env`, set `ADMIN_PASSWORD` and your existing database connection settings:
 | Setting | Example / purpose |
 | --- | --- |
 | `DATABASE_MODE` | `external` to disable the bundled PostgreSQL service |
-| `POSTGRES_HOST` | `postgres.example.org`, an IP address, or `host.docker.internal` for PostgreSQL on the Docker host |
+| `POSTGRES_HOST` | `postgres.example.org`, an IP address, or the Docker host's LAN IP for PostgreSQL on the Docker host |
 | `POSTGRES_PORT` | `5432` |
 | `POSTGRES_USER` | Existing database login role |
 | `POSTGRES_DB` | Existing database name |
 | `POSTGRES_PASSWORD` | That role's existing password |
 | `POSTGRES_SSLMODE` | `verify-full` for verified TLS; explicitly set `disable` for a LAN database configured without TLS |
 
-Enter a hostname or IP in `POSTGRES_HOST`, without a URL scheme or port. `localhost` refers to the app container; use `host.docker.internal` for the Docker host. A host database must listen on an interface reachable from Docker and allow the Docker subnet in its firewall and `pg_hba.conf`.
+Enter a hostname or IP in `POSTGRES_HOST`, without a URL scheme or port. `localhost` refers to the app container; use the Docker host's LAN IP for the Docker host. A host database must listen on an interface reachable from Docker and allow the Docker subnet in its firewall and `pg_hba.conf`.
 
 ```bash
 chmod 600 .env

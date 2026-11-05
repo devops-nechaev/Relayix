@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Existing numeric version tag, for example 0.6.2
+        description: Existing numeric version tag, for example 0.6.3
         required: true
         type: string
 permissions:
@@ -80,7 +80,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
           VERSION: ${{ steps.release.outputs.version }}
         run: |
-          if [[ ! -f deploy/compose.yaml ]]; then
+          if [[ ! -f relayix.env.example ]]; then
             echo "This historical tag has no standalone Compose bundle."
             exit 0
           fi
@@ -88,4 +88,4 @@ jobs:
           if ! gh release view "$tag" >/dev/null 2>&1; then
             gh release create "$tag" --verify-tag --prerelease --title "Relayix $VERSION Beta" --generate-notes
           fi
-          gh release upload "$tag" deploy/compose.yaml deploy/relayix.env.example --clobber
+          gh release upload "$tag" compose.yaml relayix.env.example --clobber

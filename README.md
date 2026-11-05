@@ -1,16 +1,18 @@
-# Relayix 0.6.2 Beta
+# Relayix 0.6.3 Beta
 
 A self-hosted notification hub: Rust / Axum / React / PostgreSQL. English interface, light and dark themes.
 
 ## Docker Compose quick start
 
-You only need **Docker with Compose v2.20+**. Download the ready-to-run files:
+You only need **Docker with Compose v2.20+**. There is one `compose.yaml` in the repository root for local, external and TLS PostgreSQL. It defines only `relayix-app` and optional `relayix-db`, connected to the shared `relayix-network`. Download it and the settings template:
 
 ```bash
 mkdir relayix && cd relayix
-curl -fL https://github.com/devops-nechaev/Relayix/releases/download/v0.6.2/compose.yaml -o compose.yaml
-curl -fL https://github.com/devops-nechaev/Relayix/releases/download/v0.6.2/relayix.env.example -o .env
+curl -fL https://github.com/devops-nechaev/Relayix/releases/download/v0.6.3/compose.yaml -o compose.yaml
+curl -fL https://github.com/devops-nechaev/Relayix/releases/download/v0.6.3/relayix.env.example -o .env
 ```
+
+If you already cloned this repository, run `cp relayix.env.example .env` in its root instead of downloading the files.
 
 Open `.env` and set **`POSTGRES_PASSWORD`** and **`ADMIN_PASSWORD`** to your own passwords. Keep the single quotes around passwords. The administrator password needs 12–128 characters, uppercase/lowercase letters, a number and a symbol.
 
@@ -21,7 +23,17 @@ docker compose up -d
 
 Open **`http://SERVER_IP:8080`** and sign in as **`admin`** with the `ADMIN_PASSWORD` you chose. Replace `SERVER_IP` with the IP address of your Docker host. Compose downloads the published image and starts Relayix and PostgreSQL automatically. Database data is stored in a persistent Docker volume.
 
-The same `compose.yaml` supports an **existing PostgreSQL server**. In `.env`, change `DATABASE_MODE=external` and fill in the database host, credentials and TLS settings. For a private CA, set `POSTGRES_CA_PATH` to the certificate path on your Docker host. Run the same `docker compose up -d`; the bundled PostgreSQL service is disabled. See the [setup guide](docs/DEPLOYMENT.md) for examples.
+Choose the database in `.env`:
+
+| Setting | Bundled PostgreSQL | External PostgreSQL |
+| --- | --- | --- |
+| `DATABASE_MODE` | `local` | `external` |
+| `POSTGRES_HOST` | Leave empty | Server hostname or IP |
+| `POSTGRES_PASSWORD` | Your new database password | Existing database password |
+| `POSTGRES_SSLMODE` | Ignored | `verify-full` for TLS, `disable` for a server without TLS |
+| `POSTGRES_CA_PATH` | Leave empty | Optional path to the CA certificate on the Docker host |
+
+For an external server, also set `POSTGRES_PORT`, `POSTGRES_USER` and `POSTGRES_DB` to its existing values. The bundled PostgreSQL service is disabled in external mode. TLS and a private CA use the same Compose file and command. See the [setup guide](docs/DEPLOYMENT.md) for examples.
 
 ## Updating
 

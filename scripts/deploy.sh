@@ -21,8 +21,8 @@ stamp="$(date -u +%Y%m%d-%H%M%S)-$$"
 backup_env="$backup_root/config-before-deploy-$stamp.json"
 backup_compose="$backup_root/compose-before-deploy-$stamp.yaml"
 cp "$RELAYIX_CONFIG_FILE" "$backup_env"
-cp compose.app.yaml "$backup_compose"
-"${compose[@]}" run --rm --no-deps -T db-tools pg_dump -Fc > "$backup_root/db-before-deploy-$stamp.dump"
+cp compose.yaml "$backup_compose"
+python3 scripts/database.py pg_dump -Fc > "$backup_root/db-before-deploy-$stamp.dump"
 # Pull before changing the running service or its persistent configuration.
 RELAYIX_IMAGE_OVERRIDE="$RELAYIX_DEPLOY_IMAGE" "${compose[@]}" pull app
 export RELAYIX_DEPLOY_BACKUP_ENV="$backup_env"
@@ -31,7 +31,7 @@ rollback() {
   status=$?
   trap - ERR
   cp "$RELAYIX_DEPLOY_BACKUP_ENV" "$RELAYIX_CONFIG_FILE"
-  cp "$RELAYIX_DEPLOY_BACKUP_COMPOSE" compose.app.yaml
+  cp "$RELAYIX_DEPLOY_BACKUP_COMPOSE" compose.yaml
   chmod 600 "$RELAYIX_CONFIG_FILE"
   "${compose[@]}" up -d --no-deps app || true
   echo 'Deployment failed; previous environment restored and previous app restart requested.' >&2
@@ -54,10 +54,10 @@ if candidate:
         raise SystemExit('Database destination differs from the active deployment; transfer data before switching databases')
     config=incoming
 config.pop('RELAYIX_IMAGE',None)
-compose_path=Path('compose.app.yaml')
+compose_path=Path('compose.yaml')
 text=compose_path.read_text()
-text,count=re.subn(r'(?m)^(    image:) .+$',lambda match:match[1]+' '+os.environ['RELAYIX_DEPLOY_IMAGE'],text,count=1)
-if count!=1:raise SystemExit('App image declaration was not found in compose.app.yaml')
+text,count=re.subn(r'(?m)^(    image:) .+$',lambda match:match[1]+' ${RELAYIX_IMAGE_OVERRIDE:-'+os.environ['RELAYIX_DEPLOY_IMAGE']+'}',text,count=1)
+if count!=1:raise SystemExit('App image declaration was not found in compose.yaml')
 compose_path.write_text(text)
 config['COMPOSE_PROJECT_NAME']=os.environ['COMPOSE_PROJECT_NAME']
 path.write_text(json.dumps(config,indent=2)+'\n');path.chmod(0o600)

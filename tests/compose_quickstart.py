@@ -27,14 +27,14 @@ for mode in (sys.argv[1:] or ('local', 'external', 'external-tls')):
     admin_password = 'Ab7!' + secrets.token_hex(24)
     with tempfile.TemporaryDirectory(prefix=project) as directory:
         path = Path(directory)
-        shutil.copyfile(ROOT / 'deploy/compose.yaml', path / 'compose.yaml')
+        shutil.copyfile(ROOT / 'compose.yaml', path / 'compose.yaml')
         if os.environ.get('RELAYIX_TEST_IMAGE'):
             bundle = (path / 'compose.yaml').read_text().splitlines()
             index = next(i for i, line in enumerate(bundle) if line.startswith('    image: '))
             bundle[index] = '    image: ' + os.environ['RELAYIX_TEST_IMAGE']
             (path / 'compose.yaml').write_text('\n'.join(bundle) + '\n')
         # Exercise the shipped template, including its automatic profile selection.
-        settings = (ROOT / 'deploy/relayix.env.example').read_text()
+        settings = (ROOT / 'relayix.env.example').read_text()
         settings = settings.replace("POSTGRES_PASSWORD=''", "POSTGRES_PASSWORD='" + password + "'")
         settings = settings.replace("ADMIN_PASSWORD=''", "ADMIN_PASSWORD='" + admin_password + "'")
         settings = settings.replace('BIND_ADDRESS=0.0.0.0', 'BIND_ADDRESS=127.0.0.1').replace('PORT=8080', 'PORT=0')

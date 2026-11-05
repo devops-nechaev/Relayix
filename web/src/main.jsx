@@ -8,7 +8,7 @@ import {BrandMark,BrandName,RecipientBadges,RouteTag,RouteTagFilter} from './bra
 import {integrations,types,fieldsFor,configFor,channelMethod,ProviderIcon,IntegrationCatalog,ChannelFields} from './integrations.jsx';
 import {LoginView,ProfileView,UsersView,AlertsView,DeliveryTable,DeliveryFilters,emptyFilters,Dialog,Field,CheckList,PageHeading,SaveActions,ErrorMessage,PreferenceSettings,RouteKeyDialog,RouteUsageDialog} from './ui.jsx';
 
-const VERSION='0.6.2';
+const VERSION='0.6.3';
 const blankChannel=kind=>({name:'',kind,config:configFor(kind),enabled:true});
 const blankRoute={name:'',channel_ids:[],enabled:true,min_priority:1,required_tag:''};
 class ApiError extends Error {constructor(message,status){super(message);this.status=status}}

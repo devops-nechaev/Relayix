@@ -10,7 +10,7 @@ The local origin is connected to https://github.com/devops-nechaev/Relayix.git a
 git remote -v  # origin: https://github.com/devops-nechaev/Relayix.git
 git add .
 git diff --cached --stat
-git commit -m "Prepare Relayix 0.6.2 Beta"
+git commit -m "Prepare Relayix 0.6.3 Beta"
 git push -u origin main
 ```
 
@@ -27,13 +27,13 @@ In repository settings enable Actions and Packages. Protect `main` and require t
 When a tested version is ready:
 
 ```bash
-git tag v0.6.2
-git push origin v0.6.2
+git tag v0.6.3
+git push origin v0.6.3
 ```
 
-`Release Docker image` runs the complete CI again, checks that the tag agrees with both Cargo and npm versions, and publishes `ghcr.io/devops-nechaev/relayix:0.6.2` and `:beta`. It uses the repository-scoped `GITHUB_TOKEN` with `packages:write`; no personal token is required for publication. It includes source/revision labels, build provenance and an SBOM. Tags containing `deploy/` also publish the single standalone Compose file and blank environment template as GitHub Release downloads. Tags are beta releases; the pipeline deliberately does not label them `latest`.
+`Release Docker image` runs the complete CI again, checks that the tag agrees with both Cargo and npm versions, and publishes `ghcr.io/devops-nechaev/relayix:0.6.3` and `:beta`. It uses the repository-scoped `GITHUB_TOKEN` with `packages:write`; no personal token is required for publication. It includes source/revision labels, build provenance and an SBOM. Tags containing `deploy/` also publish the single standalone Compose file and blank environment template as GitHub Release downloads. Tags are beta releases; the pipeline deliberately does not label them `latest`.
 
-`Release Docker image` can also be dispatched manually with an existing numeric version, such as `0.6.2`. Both verification and publishing check out that exact version tag, and the image revision label records the tagged commit. This supports retrying first-publication tag events without moving a release tag.
+`Release Docker image` can also be dispatched manually with an existing numeric version, such as `0.6.3`. Both verification and publishing check out that exact version tag, and the image revision label records the tagged commit. This supports retrying first-publication tag events without moving a release tag.
 
 Container package visibility is controlled in GitHub Packages. For anonymous pulls set the package public. For private pulls authenticate on the deployment host with a token allowed to read that package; do not commit the credential.
 
@@ -65,7 +65,7 @@ The synchronization command sets these Variables from the current private config
 
 `Deploy release` is a manual workflow on the default branch, targeting a dedicated Linux x64 runner labelled `relayix-deploy`. That trusted runner needs Docker Compose v2, Bash and Python 3 and access to the deployment host. Pull requests and CI run on GitHub-hosted runners, not that server.
 
-The workflow renders a candidate JSON from Secrets/Variables in `RUNNER_TEMP`, then backs up the active private configuration/database, pulls the image, checks that the candidate database password agrees with the existing one, updates the image in `compose.app.yaml`, replaces only the app and verifies health. On failure it restores the previous private settings and Compose image. It removes the temporary candidate and registry login afterwards. Active private configuration remains outside the checkout for service restarts and backup operations.
+The workflow renders a candidate JSON from Secrets/Variables in `RUNNER_TEMP`, then backs up the active private configuration/database, pulls the image, checks that the candidate database password agrees with the existing one, updates the image in `compose.yaml`, replaces only the app and verifies health. On failure it restores the previous private settings and Compose image. It removes the temporary candidate and registry login afterwards. Active private configuration remains outside the checkout for service restarts and backup operations.
 
 For manual operation, use `scripts/compose.sh`; it loads the private JSON into the Docker process environment and disables dotenv discovery. There is no production `.env` in the repository. Deployment credentials must not be put into repository Variables, workflow YAML, image build arguments, test fixtures or CI artifacts.
 
@@ -77,4 +77,4 @@ References: [GitHub Actions secrets](https://docs.github.com/en/actions/security
 
 The standard Docker-only startup guide is [DEPLOYMENT.md](DEPLOYMENT.md). This automated deployment workflow uses [private JSON settings](DEPLOYMENT_ADVANCED.md); all of its database fields live in that file. `DATABASE_MODE=local` selects the bundled database; `external` uses `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, `POSTGRES_DB`, `POSTGRES_PASSWORD` and TLS settings without creating a database service or volume. The workflow retains those fields from the active base configuration. `RELAYIX_POSTGRES_PASSWORD` must match the existing database password in either mode.
 
-The deployment script backs up either database through the one-off `db-tools` client before replacing the app. Select `POSTGRES_CLIENT_IMAGE` for the external server's major version if needed. A candidate cannot silently change database mode/host/port/user/name; perform an explicit backup/restore transfer before changing the active destination. Optional `POSTGRES_SSLROOTCERT` paths refer to files already present on the deployment host, not on the GitHub-hosted build runner.
+The deployment script backs up either database through an explicitly requested ephemeral PostgreSQL client before replacing the app. The client is not a Compose service. Select `POSTGRES_CLIENT_IMAGE` for the external server's major version if needed. A candidate cannot silently change database mode/host/port/user/name; perform an explicit backup/restore transfer before changing the active destination. Optional `POSTGRES_SSLROOTCERT` paths refer to files already present on the deployment host, not on the GitHub-hosted build runner.
