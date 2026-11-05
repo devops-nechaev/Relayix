@@ -60,7 +60,7 @@ def main():
     api = Client(TOKEN)
     for _ in range(90):
         try:
-            if api.ok('/healthz')['version'] == '0.6.4':
+            if api.ok('/healthz')['version'] == '0.7.0':
                 break
         except (URLError, AssertionError):
             time.sleep(1)
@@ -320,6 +320,8 @@ def main():
     print('PASS: all seven dashboard periods against historical database rows, matching history windows, period validation and account persistence', flush=True)
     from routing import verify
     verify(api, Client())
+    from operations import verify as verify_operations
+    verify_operations(api, Client())
     print('All smoke tests passed.', flush=True)
 
 

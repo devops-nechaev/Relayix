@@ -10,7 +10,7 @@ The local origin is connected to https://github.com/devops-nechaev/Relayix.git a
 git remote -v  # origin: https://github.com/devops-nechaev/Relayix.git
 git add .
 git diff --cached --stat
-git commit -m "Prepare Relayix 0.6.4 Beta"
+git commit -m "Prepare Relayix 0.7.0 Beta"
 git push -u origin main
 ```
 
@@ -27,13 +27,13 @@ In repository settings enable Actions and Packages. Protect `main` and require t
 When a tested version is ready:
 
 ```bash
-git tag v0.6.4
-git push origin v0.6.4
+git tag v0.7.0
+git push origin v0.7.0
 ```
 
-`Release Docker image` runs the complete CI again, checks that the tag agrees with both Cargo and npm versions, and publishes `ghcr.io/devops-nechaev/relayix:0.6.4` and `:beta`. It uses the repository-scoped `GITHUB_TOKEN` with `packages:write`; no personal token is required for publication. It includes source/revision labels, build provenance and an SBOM. Tags containing `deploy/` also publish the single standalone Compose file and blank environment template as GitHub Release downloads. Tags are beta releases; the pipeline deliberately does not label them `latest`.
+`Release Docker image` runs the complete CI again, checks that the tag agrees with both Cargo and npm versions, and publishes `ghcr.io/devops-nechaev/relayix:0.7.0` and `:beta`. It uses the repository-scoped `GITHUB_TOKEN` with `packages:write`; no personal token is required for publication. It includes source/revision labels, build provenance and an SBOM. Tags containing `deploy/` also publish the single standalone Compose file and blank environment template as GitHub Release downloads. Tags are beta releases; the pipeline deliberately does not label them `latest`.
 
-`Release Docker image` can also be dispatched manually with an existing numeric version, such as `0.6.4`. Both verification and publishing check out that exact version tag, and the image revision label records the tagged commit. This supports retrying first-publication tag events without moving a release tag.
+`Release Docker image` can also be dispatched manually with an existing numeric version, such as `0.7.0`. Both verification and publishing check out that exact version tag, and the image revision label records the tagged commit. This supports retrying first-publication tag events without moving a release tag.
 
 Container package visibility is controlled in GitHub Packages. For anonymous pulls set the package public. For private pulls authenticate on the deployment host with a token allowed to read that package; do not commit the credential.
 

@@ -98,3 +98,5 @@ html{scrollbar-gutter:stable}
 .routing-result li{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:7px 0;border-bottom:1px solid var(--border)}
 .routing-result small{color:var(--muted)}
 .routing-result code{overflow-wrap:anywhere}
+
+.history-filters{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:20px}.history-filters .form-field{flex:1;min-width:180px}.event-message{white-space:pre-wrap;overflow-wrap:anywhere;max-width:600px}.attempt-list{max-height:45vh;overflow:auto}.attempt-list section{border-bottom:1px solid var(--border);padding:12px 0}.diagnostic-steps{padding-left:24px}.diagnostic-steps li{padding:8px 0}.routing-result pre,td pre{white-space:pre-wrap;overflow-wrap:anywhere;max-width:600px}td small{display:block}

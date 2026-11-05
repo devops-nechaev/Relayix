@@ -7,6 +7,8 @@ mod auth;
 mod alerts;
 mod database;
 mod routing;
+mod operations;
+mod diagnostics;
 #[cfg(test)]
 mod tests;
 use std::{env, sync::Arc, time::Duration};
@@ -105,9 +107,9 @@ async fn delete_channel(State(s):State<AppState>, h:HeaderMap,Path(id):Path<Uuid
 #[derive(Serialize,FromRow)]
 struct Route { id:Uuid, name:String,slug:String,enabled:bool,min_priority:i32, required_tag:Option<String>,created_at:DateTime<Utc> }
 #[derive(Serialize)]
-struct RouteResponse { #[serde(flatten)] route:Route, channels:Vec<Uuid> }
+struct RouteResponse { #[serde(flatten)] route:Route, channels:Vec<Uuid>, fallback_channel_ids:Vec<Uuid> }
 #[derive(Deserialize)]
-struct RouteInput { name:String,slug:Option<String>,enabled:Option<bool>, min_priority:Option<i32>,required_tag:Option<String>, channel_ids:Vec<Uuid> }
+struct RouteInput { name:String,slug:Option<String>,enabled:Option<bool>, min_priority:Option<i32>,required_tag:Option<String>, channel_ids:Vec<Uuid>, #[serde(default)] fallback_channel_ids:Vec<Uuid> }
 fn slug_valid(s:&str)->bool { !s.is_empty() && s.len()<=80 && s.bytes().all(|b|b.is_ascii_lowercase() || b.is_ascii_digit() || b==b'-') }
 fn generated_slug(name:&str,id:Uuid)->String {
  let mut prefix=String::new();
@@ -115,6 +117,9 @@ fn generated_slug(name:&str,id:Uuid)->String {
  let prefix=prefix.trim_matches('-');format!("{}-{}",if prefix.is_empty(){"route"}else{prefix},id.simple())
 }
 fn valid_route(input:&RouteInput)->Result<()> {
+ if input.channel_ids.len()>100 || input.fallback_channel_ids.len()>100 {return Err(anyhow!("Use at most 100 primary and 100 fallback recipients"));}
+ if input.fallback_channel_ids.iter().any(|id|input.channel_ids.contains(id)) {return Err(anyhow!("Primary and fallback recipients must be different"));}
+ if input.channel_ids.iter().collect::<std::collections::HashSet<_>>().len()!=input.channel_ids.len() || input.fallback_channel_ids.iter().collect::<std::collections::HashSet<_>>().len()!=input.fallback_channel_ids.len() {return Err(anyhow!("Duplicate recipients are not allowed"));}
  if input.name.trim().is_empty()||input.name.len()>100 {return Err(anyhow!("Route name is required (maximum 100 characters)"));}
  if input.required_tag.as_ref().map(|tag|tag.trim().len()>64).unwrap_or(false) {return Err(anyhow!("Tag must be at most 64 characters"));}
  Ok(())
@@ -123,7 +128,7 @@ async fn routes(State(s):State<AppState>,h:HeaderMap)->ApiResult<Vec<RouteRespon
  auth::authenticated(&h,&s).await?;
  let rows=sqlx::query_as::<_,Route>("SELECT id,name,slug,enabled,min_priority,required_tag,created_at FROM routes ORDER BY created_at DESC").fetch_all(&s.db).await.map_err(db_error)?;
  let mut out=Vec::new();
- for route in rows {let ids:Vec<(Uuid,)> = sqlx::query_as("SELECT channel_id FROM route_channels WHERE route_id=$1").bind(route.id).fetch_all(&s.db).await.map_err(db_error)?;out.push(RouteResponse{route,channels:ids.into_iter().map(|x|x.0).collect()});}
+ for route in rows {let ids:Vec<(Uuid,)> = sqlx::query_as("SELECT channel_id FROM route_channels WHERE route_id=$1").bind(route.id).fetch_all(&s.db).await.map_err(db_error)?;let fallback:Vec<(Uuid,)>=sqlx::query_as("SELECT channel_id FROM route_fallback_channels WHERE route_id=$1 ORDER BY channel_id").bind(route.id).fetch_all(&s.db).await.map_err(db_error)?;out.push(RouteResponse{route,channels:ids.into_iter().map(|x|x.0).collect(),fallback_channel_ids:fallback.into_iter().map(|x|x.0).collect()});}
  Ok(Json(out))
 }
 async fn create_route(State(s):State<AppState>,h:HeaderMap,Json(input):Json<RouteInput>)->ApiResult<Value>{
@@ -135,6 +140,7 @@ async fn create_route(State(s):State<AppState>,h:HeaderMap,Json(input):Json<Rout
  .bind(id).bind(input.name.trim()).bind(&slug).bind(hash(&token)).bind(input.enabled.unwrap_or(true)).bind(input.min_priority.unwrap_or(1).clamp(1,5)).bind(input.required_tag.map(|t|t.trim().to_owned()).filter(|t|!t.is_empty())).execute(&mut *tx).await;
  if inserted.is_err(){return Err(err(StatusCode::CONFLICT,"Route slug already exists or invalid input"));}
  for cid in input.channel_ids {sqlx::query("INSERT INTO route_channels(route_id,channel_id) VALUES($1,$2)").bind(id).bind(cid).execute(&mut *tx).await.map_err(db_error)?;}
+ for cid in input.fallback_channel_ids {sqlx::query("INSERT INTO route_fallback_channels(route_id,channel_id) VALUES($1,$2)").bind(id).bind(cid).execute(&mut *tx).await.map_err(db_error)?;}
  tx.commit().await.map_err(db_error)?;
  Ok(Json(json!({"id":id,"token":token,"slug":slug,"route_name":input.name,"endpoint":format!("/h/{slug}")})))
 }
@@ -148,6 +154,8 @@ async fn update_route(State(s):State<AppState>,h:HeaderMap,Path(id):Path<Uuid>,J
  .bind(id).bind(input.name.trim()).bind(input.enabled.unwrap_or(true)).bind(input.min_priority.unwrap_or(1).clamp(1,5)).bind(input.required_tag.map(|t|t.trim().to_owned()).filter(|t|!t.is_empty())).execute(&mut *tx).await.map_err(db_error)?;
  sqlx::query("DELETE FROM route_channels WHERE route_id=$1").bind(id).execute(&mut *tx).await.map_err(db_error)?;
  for cid in input.channel_ids {sqlx::query("INSERT INTO route_channels(route_id,channel_id) VALUES($1,$2)").bind(id).bind(cid).execute(&mut *tx).await.map_err(db_error)?;}
+ sqlx::query("DELETE FROM route_fallback_channels WHERE route_id=$1").bind(id).execute(&mut *tx).await.map_err(db_error)?;
+ for cid in input.fallback_channel_ids {sqlx::query("INSERT INTO route_fallback_channels(route_id,channel_id) VALUES($1,$2)").bind(id).bind(cid).execute(&mut *tx).await.map_err(db_error)?;}
  tx.commit().await.map_err(db_error)?;Ok(Json(json!({"ok":true})))
 }
 async fn delete_route(State(s):State<AppState>,h:HeaderMap,Path(id):Path<Uuid>)->ApiResult<Value>{auth::authenticated(&h,&s).await?;sqlx::query("DELETE FROM routes WHERE id=$1").bind(id).execute(&s.db).await.map_err(db_error)?;Ok(Json(json!({"ok":true})))}
@@ -159,10 +167,10 @@ async fn rotate_route(State(s):State<AppState>,h:HeaderMap,Path(id):Path<Uuid>)-
 }
 
 #[derive(Serialize,FromRow)]
-struct Delivery { id:Uuid,event_id:Uuid,route_id:Uuid,channel_id:Uuid,channel_name:String,channel_kind:String,route_name:String,title:String,tags:Value,route_tag:Option<String>,status:String,attempts:i32,error:Option<String>,created_at:DateTime<Utc>,sent_at:Option<DateTime<Utc>> }
+struct Delivery { id:Uuid,event_id:Uuid,route_id:Uuid,channel_id:Uuid,channel_name:String,channel_kind:String,route_name:String,title:String,tags:Value,route_tag:Option<String>,status:String,attempts:i32,is_fallback:bool,error:Option<String>,created_at:DateTime<Utc>,sent_at:Option<DateTime<Utc>> }
 #[derive(Deserialize,Default)]
 struct DeliveryQuery {
- status:Option<String>,channel_id:Option<Uuid>,route_id:Option<Uuid>,from:Option<DateTime<Utc>>,to:Option<DateTime<Utc>>,
+ status:Option<String>,channel_id:Option<Uuid>,route_id:Option<Uuid>,event_id:Option<Uuid>,from:Option<DateTime<Utc>>,to:Option<DateTime<Utc>>,
  search:Option<String>,tag:Option<String>,period:Option<String>,page:Option<i64>,page_size:Option<i64>,
 }
 async fn deliveries(State(s):State<AppState>,h:HeaderMap,Query(mut filter):Query<DeliveryQuery>)->ApiResult<Value>{
@@ -177,16 +185,16 @@ async fn deliveries(State(s):State<AppState>,h:HeaderMap,Query(mut filter):Query
  if filter.tag.as_ref().map(|v|v.len()>64).unwrap_or(false){return Err(err(StatusCode::BAD_REQUEST,"Tag is too long"));}
  let page=filter.page.unwrap_or(1).clamp(1,1000000);let page_size=filter.page_size.unwrap_or(50).clamp(1,100);
  let search=filter.search.as_ref().filter(|v|!v.is_empty()).map(|v|format!("%{v}%"));
- let condition=" FROM deliveries d JOIN events e ON e.id=d.event_id JOIN channels c ON c.id=d.channel_id JOIN routes r ON r.id=e.route_id WHERE ($1::text IS NULL OR d.status=$1 OR ($1='retrying' AND d.status='queued' AND d.error IS NOT NULL)) AND ($2::uuid IS NULL OR d.channel_id=$2) AND ($3::uuid IS NULL OR e.route_id=$3) AND ($4::timestamptz IS NULL OR d.created_at>=$4) AND ($5::timestamptz IS NULL OR d.created_at<=$5) AND ($6::text IS NULL OR e.title ILIKE $6 OR c.name ILIKE $6 OR r.name ILIKE $6 OR COALESCE(d.error,'') ILIKE $6) AND ($7::text IS NULL OR e.tags @> jsonb_build_array($7::text) OR NULLIF(BTRIM(r.required_tag),'')=$7::text)";
+ let condition=" FROM deliveries d JOIN events e ON e.id=d.event_id JOIN channels c ON c.id=d.channel_id JOIN routes r ON r.id=e.route_id WHERE ($1::text IS NULL OR d.status=$1 OR ($1='retrying' AND d.status='queued' AND d.error IS NOT NULL)) AND ($2::uuid IS NULL OR d.channel_id=$2) AND ($3::uuid IS NULL OR e.route_id=$3) AND ($4::timestamptz IS NULL OR d.created_at>=$4) AND ($5::timestamptz IS NULL OR d.created_at<=$5) AND ($6::text IS NULL OR e.title ILIKE $6 OR c.name ILIKE $6 OR r.name ILIKE $6 OR COALESCE(d.error,'') ILIKE $6) AND ($7::text IS NULL OR e.tags @> jsonb_build_array($7::text) OR NULLIF(BTRIM(r.required_tag),'')=$7::text) AND ($8::uuid IS NULL OR e.id=$8)";
  let mut count_sql=sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT COUNT(*)");count_sql.push(condition);
- let (total,):(i64,)=count_sql.build_query_as::<(i64,)>().bind(&filter.status).bind(filter.channel_id).bind(filter.route_id).bind(filter.from).bind(filter.to).bind(&search).bind(filter.tag.as_deref().filter(|t|!t.is_empty())).fetch_one(&s.db).await.map_err(db_error)?;
- let mut rows_sql=sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT d.id,d.event_id,e.route_id,d.channel_id,c.name AS channel_name,c.kind AS channel_kind,r.name AS route_name,e.title,e.tags,NULLIF(BTRIM(r.required_tag),'') AS route_tag,d.status,d.attempts,d.error,d.created_at,d.sent_at");rows_sql.push(condition).push(" ORDER BY d.created_at DESC,d.id DESC LIMIT $8 OFFSET $9");
- let items=rows_sql.build_query_as::<Delivery>().bind(&filter.status).bind(filter.channel_id).bind(filter.route_id).bind(filter.from).bind(filter.to).bind(&search).bind(filter.tag.as_deref().filter(|t|!t.is_empty())).bind(page_size).bind((page-1)*page_size).fetch_all(&s.db).await.map_err(db_error)?;
+ let (total,):(i64,)=count_sql.build_query_as::<(i64,)>().bind(&filter.status).bind(filter.channel_id).bind(filter.route_id).bind(filter.from).bind(filter.to).bind(&search).bind(filter.tag.as_deref().filter(|t|!t.is_empty())).bind(filter.event_id).fetch_one(&s.db).await.map_err(db_error)?;
+ let mut rows_sql=sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT d.id,d.event_id,e.route_id,d.channel_id,c.name AS channel_name,c.kind AS channel_kind,r.name AS route_name,e.title,e.tags,NULLIF(BTRIM(r.required_tag),'') AS route_tag,d.status,d.attempts,d.is_fallback,d.error,d.created_at,d.sent_at");rows_sql.push(condition).push(" ORDER BY d.created_at DESC,d.id DESC LIMIT $9 OFFSET $10");
+ let items=rows_sql.build_query_as::<Delivery>().bind(&filter.status).bind(filter.channel_id).bind(filter.route_id).bind(filter.from).bind(filter.to).bind(&search).bind(filter.tag.as_deref().filter(|t|!t.is_empty())).bind(filter.event_id).bind(page_size).bind((page-1)*page_size).fetch_all(&s.db).await.map_err(db_error)?;
  Ok(Json(json!({"items":items,"total":total,"page":page,"page_size":page_size})))
 }
 async fn retry(State(s):State<AppState>,h:HeaderMap,Path(id):Path<Uuid>)->ApiResult<Value>{
  auth::authenticated(&h,&s).await?;
- let result=sqlx::query("UPDATE deliveries SET status='queued',next_attempt_at=NOW(),locked_at=NULL,error=NULL,attempts=0,last_error_at=NULL WHERE id=$1 AND (status='failed' OR (status='queued' AND error IS NOT NULL))").bind(id).execute(&s.db).await.map_err(db_error)?;
+ let result=sqlx::query("UPDATE deliveries SET status='queued',next_attempt_at=NOW(),locked_at=NULL,error=NULL,cycle_attempts=0,last_error_at=NULL WHERE id=$1 AND (status='failed' OR (status='queued' AND error IS NOT NULL))").bind(id).execute(&s.db).await.map_err(db_error)?;
  if result.rows_affected()==0 {return Err(err(StatusCode::CONFLICT,"Only failed or retrying deliveries can be retried"));}
  Ok(Json(json!({"ok":true})))
 }
@@ -242,35 +250,6 @@ async fn send(client:&reqwest::Client,c:&Channel,title:&str,message:&str,priorit
  Ok(())
 }
 
-async fn worker(s:AppState){
- loop {
-   let task:Result<Option<(Uuid,String,String,i32,Uuid)>>=async {
-     let mut tx=s.db.begin().await?;
-     let row:Option<(Uuid,String,String,i32,Uuid)>=sqlx::query_as(
-       "SELECT d.id,e.title,e.message,e.priority,d.channel_id FROM deliveries d JOIN events e ON e.id=d.event_id WHERE (d.status='queued' AND d.next_attempt_at<=NOW()) OR (d.status='processing' AND d.locked_at<NOW()-INTERVAL '2 minutes') ORDER BY d.created_at FOR UPDATE OF d SKIP LOCKED LIMIT 1")
-       .fetch_optional(&mut *tx).await?;
-     if let Some((id,_,_,_,_))=&row {sqlx::query("UPDATE deliveries SET status='processing',locked_at=NOW(),attempts=attempts+1 WHERE id=$1").bind(id).execute(&mut *tx).await?;}
-     tx.commit().await?;
-     Ok(row)
-   }.await;
-   match task {
-    Ok(Some((id,title,message,priority,cid)))=>{
-      let channel=sqlx::query_as::<_,Channel>("SELECT * FROM channels WHERE id=$1").bind(cid).fetch_optional(&s.db).await;
-      let result=match channel {Ok(Some(c))=>send(&s.client,&c,&title,&message,priority,s.allow_http,id).await,Ok(None)=>Err(anyhow!("Channel removed")),Err(e)=>Err(anyhow!(e))};
-      match result {
-       Ok(())=>{if let Err(e)=sqlx::query("UPDATE deliveries SET status='sent',sent_at=NOW(),locked_at=NULL,error=NULL,last_error_at=NULL WHERE id=$1").bind(id).execute(&s.db).await {tracing::error!(%e,"worker database update");}},
-       Err(e)=>{
-        let reason=e.to_string();
-        let _=sqlx::query("UPDATE deliveries SET status=CASE WHEN attempts>=5 THEN 'failed' ELSE 'queued' END, locked_at=NULL, next_attempt_at=NOW()+((POWER(2,LEAST(attempts,8))::int)* $3::int * INTERVAL '1 second'),error=$2,last_error_at=NOW() WHERE id=$1")
-        .bind(id).bind(reason.chars().take(512).collect::<String>()).bind(s.retry_seconds).execute(&s.db).await;
-       }
-      }
-    },
-    Ok(None)=>tokio::time::sleep(Duration::from_millis(800)).await,
-    Err(e)=>{tracing::warn!(%e,"worker poll error");tokio::time::sleep(Duration::from_secs(3)).await;}
-   }
- }
-}
 fn monitoring_period(period:&str)->Option<chrono::Duration> {
  Some(match period {"5m"=>chrono::Duration::minutes(5),"15m"=>chrono::Duration::minutes(15),"30m"=>chrono::Duration::minutes(30),"1h"=>chrono::Duration::hours(1),"24h"=>chrono::Duration::days(1),"7d"=>chrono::Duration::days(7),"30d"=>chrono::Duration::days(30),_=>return None})
 }
@@ -302,13 +281,21 @@ async fn main()->Result<()> {
  tracing_subscriber::fmt().with_env_filter(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_|"relayix=info".into())).init();
  let admin_token=env::var("ADMIN_TOKEN").unwrap_or_default();
  if !admin_token.is_empty() && (admin_token.len()<32 || admin_token.starts_with("CHANGE_ME")) {return Err(anyhow!("Set a random ADMIN_TOKEN of at least 32 chars"));}
- let db=PgPool::connect_with(database::options()?).await?;
- sqlx::migrate!().run(&db).await?;
+ let port=env::var("PORT").unwrap_or_else(|_|"8080".to_owned()).parse::<u16>().ok().filter(|p|*p>0).ok_or_else(||anyhow!("PORT must be between 1 and 65535"))?;
+ for name in ["ALLOW_INSECURE_HTTP","COOKIE_SECURE"] {if env::var(name).is_ok_and(|v|!matches!(v.as_str(),""|"true"|"false")){return Err(anyhow!("{name} must be true or false"));}}
+ if env::var("RETRY_BASE_SECONDS").is_ok_and(|v|v.parse::<i32>().map(|n|!(1..=900).contains(&n)).unwrap_or(true)){return Err(anyhow!("RETRY_BASE_SECONDS must be between 1 and 900"));}
+ let api_id=env::var("TELEGRAM_API_ID").unwrap_or_default();let api_hash=env::var("TELEGRAM_API_HASH").unwrap_or_default();
+ if !api_id.is_empty()||!api_hash.is_empty(){
+  if api_id.parse::<i32>().ok().filter(|id|*id>0).is_none(){return Err(anyhow!("TELEGRAM_API_ID must be a positive integer; set it together with TELEGRAM_API_HASH"));}
+  if api_hash.len()!=32||!api_hash.bytes().all(|b|b.is_ascii_hexdigit()){return Err(anyhow!("TELEGRAM_API_HASH must contain 32 hexadecimal characters"));}
+ }else{tracing::info!("Telegram MTProto/WEB unavailable until TELEGRAM_API_ID and TELEGRAM_API_HASH are configured; direct/HTTP Bot API remains available");}
+ let db=database::connect().await?;
+ sqlx::migrate!().run(&db).await.map_err(|_|anyhow!("Database migration failed; check schema permissions, migration history and database server logs"))?;
  auth::bootstrap(&db).await?;
  let dummy_password_hash=Arc::new(auth::dummy_hash().await?);
  let client=reqwest::Client::builder().timeout(Duration::from_secs(12)).redirect(reqwest::redirect::Policy::none()).build()?;
  let s=AppState{db,admin:Arc::new(admin_token),client,allow_http:env::var("ALLOW_INSECURE_HTTP").unwrap_or_default()=="true",secure_cookies:env::var("COOKIE_SECURE").unwrap_or_default()=="true",dummy_password_hash,retry_seconds:env::var("RETRY_BASE_SECONDS").ok().and_then(|v|v.parse::<i32>().ok()).unwrap_or(15).clamp(1,900)};
- tokio::spawn(worker(s.clone()));
+ tokio::spawn(operations::worker(s.clone()));
  tokio::spawn(alerts::worker(s.clone()));
  let api=Router::new()
  .route("/auth/login",post(auth::login))
@@ -325,13 +312,18 @@ async fn main()->Result<()> {
  .route("/alert-deliveries",get(alerts::history))
  .route("/alert-deliveries/{id}/retry",post(alerts::retry))
  .route("/channels",get(channels).post(create_channel))
+ .route("/channels/diagnose",post(diagnostics::draft))
  .route("/stats",get(stats))
  .route("/channels/{id}",axum::routing::put(update_channel).delete(delete_channel))
  .route("/channels/{id}/test",post(test_channel))
+ .route("/channels/{id}/diagnose",post(diagnostics::channel))
  .route("/routes",get(routes).post(create_route))
  .route("/routes/{id}",axum::routing::put(update_route).delete(delete_route))
  .route("/routes/{id}/rotate",post(rotate_route))
  .route("/routes/{id}/test",post(routing::test_route))
+ .route("/routes/{id}/preview",post(routing::preview_route))
+ .route("/events",get(operations::events))
+ .route("/deliveries/{id}/attempts",get(operations::attempts))
  .route("/deliveries",get(deliveries))
  .route("/deliveries/{id}/retry",post(retry))
  .fallback(||async{(StatusCode::NOT_FOUND,Json(json!({"error":"Unknown API endpoint"})))})
@@ -344,7 +336,6 @@ async fn main()->Result<()> {
  .layer(DefaultBodyLimit::max(64*1024))
  .layer(TraceLayer::new_for_http())
  .with_state(s);
- let port=env::var("PORT").unwrap_or_else(|_|"8080".to_string());
  let listener=tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")).await?;
  tracing::info!(%port,"Relayix started");
  axum::serve(listener,app).await?;Ok(())

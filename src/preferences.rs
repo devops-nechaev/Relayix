@@ -3,11 +3,11 @@ use crate::*;
 #[derive(Clone,Debug,Serialize,Deserialize,PartialEq)]
 #[serde(default,deny_unknown_fields)]
 pub struct DeliveryFilters {
-    pub status:String,pub channel_id:String,pub route_id:String,pub from:String,pub to:String,
+    pub status:String,pub channel_id:String,pub route_id:String,#[serde(default)] pub event_id:String,pub from:String,pub to:String,
     pub search:String,pub tag:String,pub period:String,
 }
 impl Default for DeliveryFilters {
-    fn default()->Self { Self{status:String::new(),channel_id:String::new(),route_id:String::new(),from:String::new(),to:String::new(),search:String::new(),tag:String::new(),period:String::new()} }
+    fn default()->Self { Self{status:String::new(),channel_id:String::new(),route_id:String::new(),event_id:String::new(),from:String::new(),to:String::new(),search:String::new(),tag:String::new(),period:String::new()} }
 }
 #[derive(Clone,Debug,Serialize,Deserialize,PartialEq)]
 #[serde(default,deny_unknown_fields)]
@@ -29,7 +29,7 @@ impl Preferences {
         let f=&self.delivery_filters;
         if !f.period.is_empty()&&monitoring_period(&f.period).is_none(){return Err(anyhow!("Invalid saved monitoring period"));}
         if !matches!(f.status.as_str(),""|"sent"|"failed"|"queued"|"processing"|"retrying") {return Err(anyhow!("Invalid saved delivery status"));}
-        for id in [&f.channel_id,&f.route_id] {if !id.is_empty() && Uuid::parse_str(id).is_err(){return Err(anyhow!("Invalid saved channel or route"));}}
+        for id in [&f.channel_id,&f.route_id,&f.event_id] {if !id.is_empty() && Uuid::parse_str(id).is_err(){return Err(anyhow!("Invalid saved channel or route"));}}
         for value in [&f.from,&f.to] {
             if !value.is_empty() && chrono::NaiveDateTime::parse_from_str(value,"%Y-%m-%dT%H:%M").is_err() && chrono::NaiveDateTime::parse_from_str(value,"%Y-%m-%dT%H:%M:%S").is_err() {return Err(anyhow!("Invalid saved date"));}
         }

@@ -133,3 +133,9 @@ docker compose logs -f app
 After editing `.env`, run `docker compose up -d` to apply changes. To stop containers, use `docker compose stop`; `docker compose up -d` starts them again. Do not use `docker compose down -v` when retaining database data.
 
 Existing private-JSON installations and GitHub-hosted deployment settings are documented in [the advanced deployment guide](DEPLOYMENT_ADVANCED.md) and [GitHub delivery](GITHUB.md). They continue to use their existing configuration and volume; changing the Compose configuration does not migrate data between installations.
+
+## Startup diagnostics
+
+Run `docker compose logs app` if the application exits. Configuration checks validate `PORT`, boolean settings, retry timing and paired Telegram application credentials. PostgreSQL errors identify authentication (`POSTGRES_USER` / `POSTGRES_PASSWORD`), database name (`POSTGRES_DB`), TLS (`POSTGRES_SSLMODE` / `POSTGRES_SSLROOTCERT`, mounted via `POSTGRES_CA_PATH`) or network (`POSTGRES_HOST` / `POSTGRES_PORT`). Installations using `DATABASE_URL` should check the equivalent URL fields. Credentials and full connection URLs are omitted.
+
+With both Telegram application credentials empty, direct/HTTP Bot API delivery remains available; MTProto/WEB checks report the missing settings. The application does not request Telegram login codes or create API credentials.

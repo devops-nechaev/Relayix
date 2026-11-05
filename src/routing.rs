@@ -102,38 +102,68 @@ fn report(endpoint: &Endpoint, event: &Event, destinations: Vec<Destination>) ->
         tag_filter_applied: false, destinations: total, active_destinations: active, recipients }
 }
 
-async fn enqueue(s: &AppState, endpoint: Endpoint, payload: Value, test: bool) -> ApiResult<Value> {
+async fn enqueue(s: &AppState, endpoint: Endpoint, payload: Value, test: bool, preview: bool, idempotency: Option<String>) -> ApiResult<Value> {
     let event = parse_event(&payload).map_err(|message| {
         tracing::warn!(route_id=%endpoint.id, reason="invalid_payload", error=message, test, "webhook payload rejected");
         err(StatusCode::BAD_REQUEST, message)
     })?;
     let mut tx = s.db.begin().await.map_err(db_error)?;
+    let payload_hash = hash(&serde_json::to_string(&payload).unwrap());
+    if let Some(ref key_hash) = idempotency {
+        // Serialize requests with the same route/key, including concurrent retries.
+        sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))")
+            .bind(format!("{}:{key_hash}",endpoint.id)).execute(&mut *tx).await.map_err(db_error)?;
+        let existing: Option<(Uuid,Option<String>,Value)> = sqlx::query_as(
+            "SELECT id,payload_hash,routing FROM events WHERE route_id=$1 AND idempotency_hash=$2")
+            .bind(endpoint.id).bind(key_hash).fetch_optional(&mut *tx).await.map_err(db_error)?;
+        if let Some((id, previous_hash, routing)) = existing {
+            if previous_hash.as_deref()!=Some(&payload_hash) {return Err(err(StatusCode::CONFLICT,"Idempotency-Key was already used with a different payload"));}
+            let queued=routing["recipients"].as_array().map(|items|items.iter().filter(|r|r["queued"]==true).count()).unwrap_or(0);
+            return Ok(Json(json!({"event_id":id,"queued":queued,"routing":routing,"duplicate":true})));
+        }
+    }
     let destinations = sqlx::query_as::<_, Destination>(
         "SELECT c.id,c.name,c.kind,c.enabled FROM channels c JOIN route_channels rc ON rc.channel_id=c.id WHERE rc.route_id=$1 ORDER BY c.created_at,c.id")
         .bind(endpoint.id).fetch_all(&mut *tx).await.map_err(db_error)?;
     let routing = report(&endpoint, &event, destinations);
+    let fallback:Vec<(Uuid,String,bool)>=sqlx::query_as("SELECT c.id,c.name,c.enabled FROM channels c JOIN route_fallback_channels f ON f.channel_id=c.id WHERE f.route_id=$1 ORDER BY c.id")
+        .bind(endpoint.id).fetch_all(&mut *tx).await.map_err(db_error)?;
+    let mut routing=serde_json::to_value(routing).unwrap();
+    routing["fallback_recipients"]=json!(fallback.iter().map(|(id,name,enabled)|json!({"id":id,"name":name,"enabled":enabled})).collect::<Vec<_>>());
+    if preview {
+        let would_queue=routing["recipients"].as_array().unwrap().iter().filter(|r|r["queued"]==true).count();
+        for recipient in routing["recipients"].as_array_mut().unwrap() {
+            recipient["would_queue"]=recipient["queued"].clone();recipient["queued"]=json!(false);
+            if recipient["would_queue"]==true {recipient["reason"]=json!("would_queue");}
+        }
+        if would_queue>0 {routing["reason"]=json!("would_queue");}
+        return Ok(Json(json!({"preview":true,"queued":0,"would_queue":would_queue,"routing":routing})));
+    }
     if !endpoint.enabled {
-        tracing::info!(route_id=%endpoint.id, reason=routing.reason, test, "webhook routing rejected");
+        tracing::info!(route_id=%endpoint.id, reason=%routing["reason"], test, "webhook routing rejected");
         return Err((StatusCode::FORBIDDEN, Json(json!({"error":"Route disabled","queued":0,"routing":routing}))));
     }
     let event_id = Uuid::new_v4();
-    sqlx::query("INSERT INTO events(id,route_id,title,message,priority,tags,payload) VALUES($1,$2,$3,$4,$5,$6,$7)")
+    sqlx::query("INSERT INTO events(id,route_id,title,message,priority,tags,payload,routing,idempotency_hash,payload_hash) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)")
         .bind(event_id).bind(endpoint.id).bind(&event.title).bind(&event.message).bind(event.priority)
-        .bind(json!(event.tags)).bind(payload).execute(&mut *tx).await.map_err(db_error)?;
+        .bind(json!(event.tags)).bind(payload).bind(&routing).bind(idempotency).bind(payload_hash).execute(&mut *tx).await.map_err(db_error)?;
     let mut queued = 0;
-    for recipient in routing.recipients.iter().filter(|recipient| recipient.queued) {
+    for recipient in routing["recipients"].as_array().unwrap().iter().filter(|recipient| recipient["queued"]==true) {
         sqlx::query("INSERT INTO deliveries(id,event_id,channel_id) VALUES($1,$2,$3)")
-            .bind(Uuid::new_v4()).bind(event_id).bind(recipient.id).execute(&mut *tx).await.map_err(db_error)?;
+            .bind(Uuid::new_v4()).bind(event_id).bind(Uuid::parse_str(recipient["id"].as_str().unwrap()).unwrap()).execute(&mut *tx).await.map_err(db_error)?;
         queued += 1;
     }
+    for (id,_,_) in fallback {
+        sqlx::query("INSERT INTO event_fallback_channels(event_id,channel_id) VALUES($1,$2)").bind(event_id).bind(id).execute(&mut *tx).await.map_err(db_error)?;
+    }
     tx.commit().await.map_err(db_error)?;
-    tracing::info!(%event_id, route_id=%endpoint.id, reason=routing.reason, matched=routing.matched,
+    tracing::info!(%event_id, route_id=%endpoint.id, reason=%routing["reason"], matched=%routing["matched"],
         priority=event.priority, min_priority=endpoint.min_priority, tag_filter_applied=false,
-        destinations=routing.destinations, active_destinations=routing.active_destinations, queued, test,
+        destinations=%routing["destinations"], active_destinations=%routing["active_destinations"], queued, test,
         "webhook routing evaluated");
-    for recipient in routing.recipients.iter().filter(|recipient| !recipient.queued) {
-        tracing::info!(%event_id, route_id=%endpoint.id, channel_id=%recipient.id,
-            reason=recipient.reason, test, "webhook destination excluded");
+    for recipient in routing["recipients"].as_array().unwrap().iter().filter(|recipient| recipient["queued"]!=true) {
+        tracing::info!(%event_id, route_id=%endpoint.id, channel_id=%recipient["id"],
+            reason=%recipient["reason"], test, "webhook destination excluded");
     }
     Ok(Json(json!({"event_id":event_id,"queued":queued,"routing":routing})))
 }
@@ -148,7 +178,15 @@ pub async fn ingest(State(s): State<AppState>, Path(slug): Path<String>, headers
     if supplied.is_empty() || !bool::from(hash(supplied).as_bytes().ct_eq(endpoint.token_hash.as_bytes())) {
         return Err(err(StatusCode::UNAUTHORIZED, "Invalid route key"));
     }
-    enqueue(&s, endpoint, payload, false).await
+    let idempotency=match headers.get("idempotency-key") {
+        None=>None,
+        Some(value)=>{
+            let value=value.to_str().map_err(|_|err(StatusCode::BAD_REQUEST,"Invalid Idempotency-Key"))?;
+            if value.is_empty() || value.len()>256 || value.chars().any(char::is_control) {return Err(err(StatusCode::BAD_REQUEST,"Idempotency-Key must contain 1–256 characters"));}
+            Some(hash(value))
+        }
+    };
+    enqueue(&s, endpoint, payload, false, false, idempotency).await
 }
 
 pub async fn test_route(State(s): State<AppState>, Path(id): Path<Uuid>, headers: HeaderMap,
@@ -158,7 +196,15 @@ pub async fn test_route(State(s): State<AppState>, Path(id): Path<Uuid>, headers
         "SELECT id,name,enabled,min_priority,required_tag,token_hash FROM routes WHERE id=$1")
         .bind(id).fetch_optional(&s.db).await.map_err(db_error)?
         .ok_or_else(|| err(StatusCode::NOT_FOUND, "Route not found"))?;
-    enqueue(&s, endpoint, payload, true).await
+    enqueue(&s, endpoint, payload, true, false, None).await
+}
+
+pub async fn preview_route(State(s): State<AppState>, Path(id): Path<Uuid>, headers: HeaderMap,
+                           Json(payload): Json<Value>) -> ApiResult<Value> {
+    auth::authenticated(&headers,&s).await?;
+    let endpoint=sqlx::query_as::<_,Endpoint>("SELECT id,name,enabled,min_priority,required_tag,token_hash FROM routes WHERE id=$1")
+        .bind(id).fetch_optional(&s.db).await.map_err(db_error)?.ok_or_else(||err(StatusCode::NOT_FOUND,"Route not found"))?;
+    enqueue(&s,endpoint,payload,true,true,None).await
 }
 
 #[cfg(test)]

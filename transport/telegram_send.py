@@ -75,6 +75,33 @@ async def deliver(data, factory=TelegramClient):
         await client.disconnect()
 
 
+async def diagnose(data, factory=TelegramClient):
+    cfg = data['config']
+    steps = []
+    client = factory(MemorySession(), int(cfg['api_id']), cfg['api_hash'],
+                     **options(cfg), timeout=10, connection_retries=1, request_retries=0,
+                     auto_reconnect=False, receive_updates=False, flood_sleep_threshold=0)
+    stage = 'transport'
+    try:
+        await client.connect()
+        steps.append({'name': stage, 'status': 'passed', 'detail': 'Proxy transport and Telegram handshake succeeded.'})
+        stage = 'credentials'
+        await client.sign_in(bot_token=cfg['bot_token'])
+        steps.append({'name': stage, 'status': 'passed', 'detail': 'Telegram accepted the bot and application credentials.'})
+        stage = 'destination'
+        await client.get_entity(destination(cfg))
+        steps.append({'name': stage, 'status': 'passed', 'detail': 'Telegram resolved the destination.'})
+        steps.append({'name': 'permissions', 'status': 'warning', 'detail': 'Use Test to verify message and topic permissions; diagnostics do not send messages.'})
+    except Exception as exc:
+        steps.append({'name': stage, 'status': 'failed', 'detail': {
+            'credentials': 'Telegram rejected credentials.', 'destination': 'Chat not accessible; check bot membership and Chat ID.',
+            'flood': 'Telegram rate limit; wait before retrying.', 'proxy': 'Proxy transport or Telegram handshake failed.'
+        }.get(error_code(exc), 'Telegram check failed; check connectivity and permissions.')})
+    finally:
+        await client.disconnect()
+    return steps
+
+
 def error_code(exc):
     if isinstance(exc, errors.FloodWaitError):
         return 'flood'
@@ -92,8 +119,13 @@ def main():
         raw = sys.stdin.buffer.read(128 * 1024 + 1)
         if len(raw) > 128 * 1024:
             raise ValueError('Request too large')
-        asyncio.run(asyncio.wait_for(deliver(json.loads(raw)), timeout=45))
-        print(json.dumps({'ok': True}))
+        data = json.loads(raw)
+        if data.get('action') == 'diagnose':
+            steps = asyncio.run(asyncio.wait_for(diagnose(data), timeout=45))
+            print(json.dumps({'ok': True, 'steps': steps}))
+        else:
+            asyncio.run(asyncio.wait_for(deliver(data), timeout=45))
+            print(json.dumps({'ok': True}))
     except Exception as exc:
         # Never echo Telegram/proxy exception strings, tokens, URLs or configuration.
         print(json.dumps({'ok': False, 'code': error_code(exc)}))

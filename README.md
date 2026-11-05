@@ -1,4 +1,4 @@
-# Relayix 0.6.4 Beta
+# Relayix 0.7.0 Beta
 
 A self-hosted notification hub: Rust / Axum / React / PostgreSQL. English interface, light and dark themes.
 
@@ -47,6 +47,22 @@ docker compose up -d --no-deps app
 ```
 
 Schema migrations run automatically. Keep your `.env`, Compose project name and database volume.
+
+## Incoming events and delivery operations
+
+**Incoming webhooks** shows accepted events even when `queued` is zero. Filter by route, routing result or title/message text and inspect the original routing report. Older events remain visible with a legacy diagnostic label. Invalid requests and failed authentication are not stored as events.
+
+In **Routes → Test webhook**, **Preview routing** shows which recipients would receive a payload without storing an event or sending messages. **Send test webhook** creates real deliveries. Optional priority defaults to 3; tags remain UI metadata only.
+
+Click the attempt count in **Deliveries** to inspect errors and start/finish times. **Retry now** starts another cycle of up to five attempts while preserving total attempts and history. A recovered worker lease is marked interrupted because the previous send outcome may be unknown. Older attempts made before this release have counts but no detailed records.
+
+Select **Fallback recipients** when editing a route. After any primary delivery exhausts five attempts, Relayix queues the original message to each enabled fallback recipient. Fallback targets are captured when the event is accepted; each recipient is queued once per event, even if several primary recipients fail or a primary is manually retried. Fallback deliveries have their own five attempts and cannot trigger another fallback. Primary and fallback recipients must be different. Disabling a channel prevents pending sends and fallback dispatch to it. A delivery already in progress can still complete.
+
+For safe webhook retries, send `Idempotency-Key: YOUR_UNIQUE_EVENT_KEY`. The key is scoped to the route and retained with the event. Repeating a key with the same JSON payload returns the original event ID, original queue count and `duplicate: true`, without new deliveries. Reusing a key with a different payload returns `409 Conflict`. Concurrent retries are serialized. JSON object key order does not matter; changes to values or optional fields count as a different payload. Keys contain 1–256 characters and are stored as hashes. Deleting the event or its route removes its deduplication record. Delivery retries remain at least once; an external receiver may receive a duplicate after a crash or an ambiguous network failure.
+
+In **Channels → Telegram → Diagnose**, run read-only checks of saved configuration, transport, bot authentication and chat access. You can also use **Check Telegram settings** in the channel form before saving. Permission checks that cannot establish sendability are shown as warnings; use **Test** separately to verify sending, including topic restrictions. MTProto/WEB still require `TELEGRAM_API_ID` and `TELEGRAM_API_HASH` on the server. HTTP Bot API works without those application credentials.
+
+Startup errors name invalid settings and distinguish database authentication, missing databases, TLS and connection problems without printing credentials. Inspect them with `docker compose logs app`.
 
 ## Screenshots
 
@@ -197,10 +213,15 @@ Use an authenticated browser session plus `X-Relay-Client: web`, or `Authorizati
 | GET / POST | `/api/channels` | List/create channels |
 | PUT / DELETE | `/api/channels/{id}` | Edit/delete channel |
 | POST | `/api/channels/{id}/test` | Direct test notification |
+| POST | `/api/channels/{id}/diagnose` | Read-only diagnostics for saved settings |
+| POST | `/api/channels/diagnose` | Read-only draft diagnostics; optional id restores masked secrets |
 | GET / POST | `/api/routes` | List/create routes |
 | PUT / DELETE | `/api/routes/{id}` | Edit/delete route |
 | POST | `/api/routes/{id}/rotate` | Rotate route key |
 | POST | `/api/routes/{id}/test` | Send a real test event through route filters and return routing diagnostics; authenticated users only |
+| POST | `/api/routes/{id}/preview` | Preview routing without storing or sending |
+| GET | `/api/events` | Incoming event history and original routing diagnostics |
+| GET | `/api/deliveries/{id}/attempts` | Latest 100 attempt records and total attempts |
 | GET | `/api/stats` | Delivery and failure counters |
 | GET | `/api/deliveries` | `{items,total,page,page_size}` with filters |
 | POST | `/api/deliveries/{id}/retry` | Retry failed/retrying delivery |
@@ -210,7 +231,7 @@ Use an authenticated browser session plus `X-Relay-Client: web`, or `Authorizati
 | GET | `/api/alert-deliveries` | Warning history |
 | POST | `/api/alert-deliveries/{id}/retry` | Retry failed warning |
 
-Delivery query fields: `status` (`sent`, `failed`, `queued`, `processing`, `retrying`), `channel_id`, `route_id`, `tag`, `from`, `to` (RFC 3339 timestamps), `search`, `period` (`5m`, `15m`, `30m`, `1h`, `24h`, `7d`, `30d`), `page`, `page_size`.
+Delivery query fields: `status` (`sent`, `failed`, `queued`, `processing`, `retrying`), `channel_id`, `route_id`, `event_id`, `tag`, `from`, `to` (RFC 3339 timestamps), `search`, `period` (`5m`, `15m`, `30m`, `1h`, `24h`, `7d`, `30d`), `page`, `page_size`.
 
 ## Development and verification
 
@@ -229,3 +250,5 @@ GitHub CI, GHCR delivery and first repository setup are described in [docs/GITHU
 Relayix original source is licensed under [Apache-2.0](LICENSE). Preserve [NOTICE](NOTICE) and [third-party notices](THIRD_PARTY_NOTICES.md); dependencies keep their own licenses, collected under LICENSES/. Service trademarks remain with their owners.
 
 Schema migrations belong in source control. Private deployment configuration, database dumps, Telegram sessions and backups do not. Local backups have been moved outside the checkout. See [publication checks](docs/PUBLICATION.md) and [GitHub setup](docs/GITHUB.md). Nothing is automatically pushed by those local checks.
+
+Incoming history query fields: `route_id`, `reason`, `search`, `page`, `page_size` (1–100). Route create/update accepts `fallback_channel_ids` separately from primary `channel_ids`.

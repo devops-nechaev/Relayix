@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.0 Beta — 2026-11-05
+
+- Add searchable, paginated incoming webhook history, including accepted events with no queued deliveries and their original routing decisions.
+- Preview route decisions without storing events or sending messages.
+- Preserve delivery attempt counts and detailed attempt history across manual retries; show attempt errors, timings and fallback status.
+- Configure explicit fallback recipients per route. After a primary delivery exhausts five attempts, queue each fallback once per event without recursive fallback.
+- Support route-scoped Idempotency-Key headers with concurrent duplicate suppression and conflict detection for changed payloads.
+- Add read-only Telegram diagnostics for proxy transport, credentials, destination access and permission checks, without sending messages or exposing credentials.
+- Validate startup settings and report actionable database authentication, TLS, network and configuration errors without connection credentials.
+
 ## 0.6.4 Beta — 2026-11-05
 
 - Distinguish plain MTProxy secrets from dd/ee markers by their full length and preserve raw keys beginning with those bytes; cover each prefix deterministically.
