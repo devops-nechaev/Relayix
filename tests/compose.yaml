@@ -3,13 +3,13 @@ services:
   db:
     image: postgres:17-alpine
     environment:
-      POSTGRES_USER: relaynest
+      POSTGRES_USER: relayix
       POSTGRES_PASSWORD: ${RELAYIX_TEST_POSTGRES_PASSWORD:?generated test runtime required}
-      POSTGRES_DB: relaynest
+      POSTGRES_DB: relayix
     tmpfs:
       - /var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U relaynest']
+      test: ['CMD-SHELL', 'pg_isready -U relayix']
       interval: 2s
       timeout: 2s
       retries: 30
@@ -34,7 +34,7 @@ services:
   app:
     image: ${RELAYIX_TEST_IMAGE:-relayix:0.6.1}
     environment:
-      DATABASE_URL: postgres://relaynest:${RELAYIX_TEST_POSTGRES_PASSWORD:?generated test runtime required}@db:5432/relaynest
+      DATABASE_URL: postgres://relayix:${RELAYIX_TEST_POSTGRES_PASSWORD:?generated test runtime required}@db:5432/relayix
       ADMIN_TOKEN: ${RELAYIX_TEST_ADMIN_TOKEN:?generated test runtime required}
       ALLOW_INSECURE_HTTP: 'true'
       ADMIN_USERNAME: admin
@@ -53,9 +53,9 @@ services:
       RELAYIX_TEST_CREDENTIALS_FILE: /run/relayix-test/credentials.json
       RELAYIX_TEST_BASE_URL: ${RELAYIX_TEST_BASE_URL:?generated test runtime required}
       PGHOST: db
-      PGUSER: relaynest
+      PGUSER: relayix
       PGPASSWORD: ${RELAYIX_TEST_POSTGRES_PASSWORD:?generated test runtime required}
-      PGDATABASE: relaynest
+      PGDATABASE: relayix
     command: ['python', '-u', '/tests/smoke.py']
     volumes:
       - ${RELAYIX_TEST_RUNTIME_DIR:?generated test runtime required}:/run/relayix-test:ro

@@ -20,7 +20,7 @@ if any('\x00' in k+v or '\n' in k+v or '\r' in k+v for k,v in config.items()):
     raise SystemExit('Invalid multiline deployment configuration')
 env={**os.environ,**config}
 if config.get('POSTGRES_PASSWORD'):
-    env['RELAYIX_DATABASE_URL']='postgres://relaynest:'+quote(config['POSTGRES_PASSWORD'],safe='')+'@db:5432/relaynest'
+    env['RELAYIX_DATABASE_URL']='postgres://'+quote(config.get('POSTGRES_USER','relayix'),safe='')+':'+quote(config['POSTGRES_PASSWORD'],safe='')+'@db:5432/'+quote(config.get('POSTGRES_DB','relayix'),safe='')
 if 'RELAYIX_IMAGE_OVERRIDE' in os.environ:env['RELAYIX_IMAGE']=os.environ['RELAYIX_IMAGE_OVERRIDE']
 if 'RELAYIX_COMPOSE_PROJECT' in os.environ:env['COMPOSE_PROJECT_NAME']=os.environ['RELAYIX_COMPOSE_PROJECT']
 os.chdir(ROOT)

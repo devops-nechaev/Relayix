@@ -2,6 +2,8 @@
 
 ## Unreleased — 2026-11-05
 
+- Finish the Relayix rename across Compose, PostgreSQL defaults, browser storage/session cookies, scripts and documentation. Preserve applied migration checksums and update failure-alert branding in a new migration.
+
 - Compact channel rows show destination, connection, status and actions without credential placeholders.
 - Use the official Mattermost SVG logomark with its source notice.
 - Configure Telegram application credentials once per server, retain channel overrides and use zero access hashes for bot destinations.

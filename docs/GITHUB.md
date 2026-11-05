@@ -37,7 +37,7 @@ Container package visibility is controlled in GitHub Packages. For anonymous pul
 
 ## Deployment configuration and GitHub Secrets
 
-Create the `production` GitHub environment with required reviewers and restrict deployments to the default branch. The existing LAN deployment keeps Compose project `relaynest` and PostgreSQL volume `relaynest_db_data`.
+Create the `production` GitHub environment with required reviewers and restrict deployments to the default branch. The existing LAN deployment keeps Compose project `relayix` and PostgreSQL volume `relayix_db_data`.
 
 Store these **Secrets** in the production environment:
 
@@ -53,7 +53,7 @@ Use **Variables** for nonsecret configuration:
 
 - `RELAYIX_DEPLOY_DIR`: absolute source/deployment directory.
 - `RELAYIX_CONFIG_FILE`: optional absolute private JSON path (default `../private/relayix-config/deployment.json` relative to the checkout).
-- `RELAYIX_COMPOSE_PROJECT`: `relaynest` for this existing installation.
+- `RELAYIX_COMPOSE_PROJECT`: `relayix` for this existing installation.
 - `RELAYIX_HEALTH_URL`: `http://192.168.39.110:8080/healthz` for this installation.
 - Optional `RELAYIX_ADMIN_USERNAME`, `RELAYIX_BIND_ADDRESS`, `RELAYIX_PORT`, `RELAYIX_COOKIE_SECURE` override their existing nonsecret values.
 

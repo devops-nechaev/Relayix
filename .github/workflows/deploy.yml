@@ -68,7 +68,7 @@ jobs:
           export DOCKER_CONFIG="$RUNNER_TEMP/relayix-docker-auth"
           export RELAYIX_DEPLOY_IMAGE="ghcr.io/${REPOSITORY,,}:$VERSION"
           export RELAYIX_EXPECTED_VERSION="$VERSION"
-          export RELAYIX_COMPOSE_PROJECT="${COMPOSE_PROJECT:-relaynest}"
+          export RELAYIX_COMPOSE_PROJECT="${COMPOSE_PROJECT:-relayix}"
           export RELAYIX_HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:8080/healthz}"
           "$DEPLOY_DIRECTORY/scripts/deploy.sh"
       - name: Remove temporary credentials

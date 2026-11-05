@@ -8,5 +8,7 @@
   "BIND_ADDRESS": "127.0.0.1",
   "PORT": "8080",
   "RUST_LOG": "relayix=info,tower_http=info",
-  "ALLOW_INSECURE_HTTP": "false"
+  "ALLOW_INSECURE_HTTP": "false",
+  "POSTGRES_USER": "relayix",
+  "POSTGRES_DB": "relayix"
 }

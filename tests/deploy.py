@@ -9,7 +9,7 @@ import tempfile
 
 SOURCE = Path(__file__).resolve().parents[1] / 'scripts' / 'deploy.sh'
 PASSWORD=secrets.token_hex(32)
-OLD=json.dumps({'COMPOSE_PROJECT_NAME':'relaynest','RELAYIX_IMAGE':'relayix:0.6.0','POSTGRES_PASSWORD':PASSWORD})
+OLD=json.dumps({'COMPOSE_PROJECT_NAME':'relayix','RELAYIX_IMAGE':'relayix:0.6.0','POSTGRES_PASSWORD':PASSWORD})
 with tempfile.TemporaryDirectory(prefix='relayix-deploy-test-') as directory:
     workspace=Path(directory)
     root=workspace/'repo';root.mkdir()

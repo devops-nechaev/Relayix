@@ -4,13 +4,13 @@ export const monitoringPeriods=[['5m','5 minutes'],['15m','15 minutes'],['30m','
 export const periodLabel=value=>monitoringPeriods.find(([key])=>key===value)?.[1]||'30 days';
 export const defaultFilters={status:'',channel_id:'',route_id:'',from:'',to:'',search:'',tag:'',period:''};
 export const defaultPreferences={theme:'light',refresh_interval_seconds:15,delivery_filters:defaultFilters,route_tag_filter:'',page_size:50,list_search:'',dashboard_period:'30d',api_token_tag_filter:'',notification_timeout_seconds:8};
-const pendingKey=owner=>`relaynest-pending-preferences:${owner}`;
+const pendingKey=owner=>`relayix-pending-preferences:${owner}`;
 const pendingRead=owner=>{try{return JSON.parse(localStorage.getItem(pendingKey(owner))||'null')}catch{return null}};
 const pendingWrite=(owner,value)=>{try{if(value)localStorage.setItem(pendingKey(owner),JSON.stringify(value));else localStorage.removeItem(pendingKey(owner))}catch{}};
 const normalized=value=>({...defaultPreferences,...value,delivery_filters:{...defaultFilters,...value?.delivery_filters}});
 
 export function usePreferences(save) {
- const [preferences,setPreferences]=useState(()=>normalized({theme:localStorage.getItem('relaynest-theme')==='dark'?'dark':'light'}));
+ const [preferences,setPreferences]=useState(()=>normalized({theme:localStorage.getItem('relayix-theme')==='dark'?'dark':'light'}));
  const [status,setStatus]=useState('saved'),[error,setError]=useState('');
  const valueRef=useRef(preferences),ownerRef=useRef(null),dirty=useRef(false),revision=useRef(0),timer=useRef(null),queue=useRef(Promise.resolve()),saveRef=useRef(save);
  saveRef.current=save;

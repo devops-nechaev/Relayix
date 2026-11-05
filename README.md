@@ -32,7 +32,7 @@ scripts/compose.sh up -d
 scripts/compose.sh ps
 ```
 
-The generator prints no passwords/tokens. Open the private file locally to obtain bootstrap credentials. Set its `BIND_ADDRESS` and `PORT` for your host. The default bind is loopback; the existing LAN installation retains its configured address and `COMPOSE_PROJECT_NAME=relaynest` to reuse its PostgreSQL volume.
+The generator prints no passwords/tokens. Open the private file locally to obtain bootstrap credentials. Set its `BIND_ADDRESS` and `PORT` for your host. The default bind is loopback. Compose uses project `relayix`, PostgreSQL role/database `relayix` and the `relayix_db_data` volume. Existing installations must preserve their database settings or follow the backup/restore procedure in [UPGRADE.md](UPGRADE.md).
 
 `scripts/compose.sh` passes the private JSON settings in the Docker process environment and disables automatic `.env` discovery. `RELAYIX_CONFIG_FILE` selects another external JSON file; configuration inside the source checkout is rejected. Production uses a prebuilt image; no source build is needed on the target server. Build locally with `docker build -t relayix:0.6.1 .` when developing.
 
@@ -109,7 +109,7 @@ A route's **Required tag** limits delivery to incoming events that contain that 
 
 ```bash
 curl --fail-with-body -X POST http://192.168.39.110:8080/h/gitlab-deploy \
-  -H "X-Relay-Key: $RELAYNEST_KEY" \
+  -H "X-Relay-Key: $RELAYIX_KEY" \
   -H 'Content-Type: application/json' \
   -d '{"title":"Deployment successful","message":"auth deployed to production","priority":3,"tags":["deploy"]}'
 ```

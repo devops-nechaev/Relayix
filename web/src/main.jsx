@@ -38,7 +38,7 @@ function RouteRow({route,channels,onCopy,onEdit,onRotate,onDelete,onTag,onUsage,
  </article>;
 }
 function App(){
- const [token,setToken]=useState(()=>(sessionStorage.removeItem('relaynest-token'),sessionStorage.getItem('relaynest-api-token')||''));
+ const [token,setToken]=useState(()=>(sessionStorage.removeItem('relayix-token'),sessionStorage.getItem('relayix-api-token')||''));
  const [user,setUser]=useState(null),[checking,setChecking]=useState(true);
  const {preferences,update:updatePreferences,load:loadPreferences,flush:flushPreferences,reset:resetPreferences,status:preferencesStatus,error:preferencesError,readRevision:readPreferenceRevision}=usePreferences(value=>request('/api/auth/preferences',token,{keepalive:true,method:'PUT',body:JSON.stringify(value)}));
  const theme=preferences.theme,filters=preferences.delivery_filters,search=preferences.list_search,pageSize=preferences.page_size;
@@ -51,10 +51,10 @@ function App(){
  const [error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[refreshing,setRefreshing]=useState(false),[lastUpdated,setLastUpdated]=useState(null);
  const [modal,setModal]=useState(null),[draft,setDraft]=useState(null),[savedKey,setSavedKey]=useState(null),[usageRoute,setUsageRoute]=useState(null);
  const generation=useRef(0),menuRef=useRef(null);
- useEffect(()=>{document.documentElement.dataset.theme=theme;localStorage.setItem('relaynest-theme',theme)},[theme]);
- useEffect(()=>{let active=true;request('/api/auth/me',token).then(u=>{if(active)acceptUser(u)}).catch(()=>{if(active){sessionStorage.removeItem('relaynest-api-token');setToken('')}}).finally(()=>{if(active)setChecking(false)});return()=>{active=false}},[]);
+ useEffect(()=>{document.documentElement.dataset.theme=theme;localStorage.setItem('relayix-theme',theme)},[theme]);
+ useEffect(()=>{let active=true;request('/api/auth/me',token).then(u=>{if(active)acceptUser(u)}).catch(()=>{if(active){sessionStorage.removeItem('relayix-api-token');setToken('')}}).finally(()=>{if(active)setChecking(false)});return()=>{active=false}},[]);
  useEffect(()=>{const close=e=>{if(menuRef.current&&!menuRef.current.contains(e.target))setProfileMenu(false)};const escape=e=>{if(e.key==='Escape')setProfileMenu(false)};document.addEventListener('pointerdown',close);document.addEventListener('keydown',escape);return()=>{document.removeEventListener('pointerdown',close);document.removeEventListener('keydown',escape)}},[]);
- const api=useCallback(async(path,options={})=>{try{return await request(path,token,options)}catch(e){if(e.status===401){sessionStorage.removeItem('relaynest-api-token');setToken('');setUser(null);resetPreferences()}throw e}},[token,resetPreferences]);
+ const api=useCallback(async(path,options={})=>{try{return await request(path,token,options)}catch(e){if(e.status===401){sessionStorage.removeItem('relayix-api-token');setToken('');setUser(null);resetPreferences()}throw e}},[token,resetPreferences]);
  useEffect(()=>{if(user&&user.role!=='admin'&&['Users','Failure alerts'].includes(page))setPage('Dashboard')},[user?.role,page]);
  const authenticatedAs=user?.username;
  const reload=useCallback(async(manual=false)=>{
@@ -80,8 +80,8 @@ function App(){
  useEffect(()=>{if(!authenticatedAs||!preferences.refresh_interval_seconds)return;const interval=setInterval(()=>{if(document.visibilityState==='visible'&&!modal)reload()},preferences.refresh_interval_seconds*1000);return()=>clearInterval(interval)},[authenticatedAs,reload,modal,preferences.refresh_interval_seconds]);
  const action=async(fn)=>{setBusy(true);setError('');setNotice('');try{await fn();await reload();return true}catch(e){setError(e.message);return false}finally{setBusy(false)}};
  const navigate=name=>{setPage(name);setError('');setProfileMenu(false)};
- const signIn=async(mode,credentials)=>{let u;if(mode==='password'){u=await request('/api/auth/login','',{method:'POST',body:JSON.stringify({username:credentials.username,password:credentials.password})});sessionStorage.removeItem('relaynest-api-token');setToken('')}else{u=await request('/api/auth/me',credentials.token);sessionStorage.setItem('relaynest-api-token',credentials.token);setToken(credentials.token)}acceptUser(u);setError('');setNotice('');setPage('Dashboard')};
- const logout=async()=>{try{await flushPreferences();await api('/api/auth/logout',{method:'POST'})}catch(e){if(e.status!==401){setError(e.message);return}}resetPreferences();sessionStorage.removeItem('relaynest-api-token');setToken('');setUser(null);setChannels([]);setRoutes([]);setProfileMenu(false);setError('');setNotice('')};
+ const signIn=async(mode,credentials)=>{let u;if(mode==='password'){u=await request('/api/auth/login','',{method:'POST',body:JSON.stringify({username:credentials.username,password:credentials.password})});sessionStorage.removeItem('relayix-api-token');setToken('')}else{u=await request('/api/auth/me',credentials.token);sessionStorage.setItem('relayix-api-token',credentials.token);setToken(credentials.token)}acceptUser(u);setError('');setNotice('');setPage('Dashboard')};
+ const logout=async()=>{try{await flushPreferences();await api('/api/auth/logout',{method:'POST'})}catch(e){if(e.status!==401){setError(e.message);return}}resetPreferences();sessionStorage.removeItem('relayix-api-token');setToken('');setUser(null);setChannels([]);setRoutes([]);setProfileMenu(false);setError('');setNotice('')};
  const openChannel=channel=>{setError('');setDraft(channel?{...channel,config:{...channel.config}}:blankChannel('telegram'));setModal('channel')};
  const addIntegration=kind=>{setError('');setDraft(blankChannel(kind));setModal('channel')};
  const openRoute=route=>{setError('');setDraft(route?{...route,channel_ids:[...route.channels]}:{...blankRoute,channel_ids:[]});setModal('route')};

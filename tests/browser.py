@@ -378,7 +378,7 @@ with sync_playwright() as p:
     expect(fresh.get_by_label('Dashboard period', exact=True)).to_have_value('15m')
     fresh.get_by_role('button', name='Routes', exact=True).click()
     expect(fresh.get_by_label('Filter routes by tag', exact=True)).to_have_value('deploy')
-    assert 'RelayNest' not in fresh.locator('body').inner_text()
+    assert 'Relayix' in fresh.locator('body').inner_text()
     context.close()
     print('PASS: all seven dashboard windows and linked history; persisted periods; official Mattermost icon; bot/DM channel configuration/test/edit; unified Routes with endpoints, key rotation, integration example, recipient icons/methods/tags and persisted filter; Relayix branding and favicon assets; mobile layouts')
     # Personal banner timeout and manual dismissal apply to both success and error banners.

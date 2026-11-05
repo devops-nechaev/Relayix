@@ -62,7 +62,7 @@ async fn verify(password: String, encoded: String) -> bool {
 
 fn session_token(h: &HeaderMap) -> Option<&str> {
     h.get(header::COOKIE)?.to_str().ok()?.split(';').filter_map(|part|part.trim().split_once('='))
-        .find(|(name,_)|*name=="relaynest-session").map(|(_,value)|value)
+        .find(|(name,_)|*name=="relayix-session").map(|(_,value)|value)
 }
 
 pub async fn authenticated(h: &HeaderMap, s: &AppState) -> std::result::Result<Principal,(StatusCode,Json<Value>)> {
@@ -129,7 +129,7 @@ pub async fn login(State(s):State<AppState>, h:HeaderMap, Json(input):Json<Login
     sqlx::query("INSERT INTO sessions(token_hash,user_id,expires_at) VALUES($1,$2,NOW()+INTERVAL '7 days')").bind(hash(&token)).bind(id).execute(&s.db).await.map_err(db_error)?;
     let user=sqlx::query_as::<_,User>("SELECT id,username,display_name,role,enabled,created_at,preferences FROM users WHERE id=$1").bind(id).fetch_one(&s.db).await.map_err(db_error)?;
     let mut headers=HeaderMap::new();
-    headers.insert(header::SET_COOKIE,HeaderValue::from_str(&format!("relaynest-session={token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=604800{}",if s.secure_cookies {"; Secure"}else{""})).unwrap());
+    headers.insert(header::SET_COOKIE,HeaderValue::from_str(&format!("relayix-session={token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=604800{}",if s.secure_cookies {"; Secure"}else{""})).unwrap());
     Ok((headers,Json(user.into())))
 }
 
@@ -138,7 +138,7 @@ pub async fn me(State(s):State<AppState>,h:HeaderMap)->ApiResult<Principal> { Ok
 pub async fn logout(State(s):State<AppState>,h:HeaderMap)->std::result::Result<(HeaderMap,Json<Value>),(StatusCode,Json<Value>)> {
     authenticated(&h,&s).await?;
     if let Some(token)=session_token(&h) { sqlx::query("DELETE FROM sessions WHERE token_hash=$1").bind(hash(token)).execute(&s.db).await.map_err(db_error)?; }
-    let mut headers=HeaderMap::new();headers.insert(header::SET_COOKIE,HeaderValue::from_static("relaynest-session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0"));
+    let mut headers=HeaderMap::new();headers.insert(header::SET_COOKIE,HeaderValue::from_static("relayix-session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0"));
     Ok((headers,Json(json!({"ok":true}))))
 }
 

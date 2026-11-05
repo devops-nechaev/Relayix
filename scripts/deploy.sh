@@ -5,14 +5,14 @@ cd "$(dirname "$0")/.."
 : "${RELAYIX_DEPLOY_IMAGE:?Set an explicit image reference}"
 : "${RELAYIX_EXPECTED_VERSION:?Set the version expected from healthz}"
 [[ "$RELAYIX_EXPECTED_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
-export COMPOSE_PROJECT_NAME="${RELAYIX_COMPOSE_PROJECT:-relaynest}"
+export COMPOSE_PROJECT_NAME="${RELAYIX_COMPOSE_PROJECT:-relayix}"
 export RELAYIX_HEALTH_URL="${RELAYIX_HEALTH_URL:-http://127.0.0.1:8080/healthz}"
 # Image references and versions are arguments, never shell code.
 [[ "$RELAYIX_DEPLOY_IMAGE" =~ ^[a-zA-Z0-9][a-zA-Z0-9._:/@-]+$ ]]
 export RELAYIX_CONFIG_FILE="${RELAYIX_CONFIG_FILE:-$PWD/../private/relayix-config/deployment.json}"
 test -f "$RELAYIX_CONFIG_FILE"
 compose=("$PWD/scripts/compose.sh")
-unset RELAYIX_IMAGE RELAYNEST_IMAGE
+unset RELAYIX_IMAGE
 umask 077
 backup_root="${RELAYIX_BACKUP_DIR:-../private/relayix-backups}"
 mkdir -p "$backup_root"

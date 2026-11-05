@@ -1,10 +1,10 @@
 # Upgrade Relayix to 0.6.1 Beta
 
-The existing deployment keeps its Compose project `relaynest`, PostgreSQL volume, users, channel credentials, route addresses and route keys. No database migration is required for 0.6.1. Applied migrations remain unchanged.
+The deployment uses Compose project `relayix`, PostgreSQL role/database `relayix`, and volume `relayix_db_data`. Users, channel credentials, route addresses and route keys must survive upgrades. Historical applied migrations remain unchanged; the new branding migration updates only the default failure-alert title and existing policies that still use that default.
 
 Private configuration is now outside the checkout at `../private/relayix-config/deployment.json`. It contains the existing values as JSON strings. The local installation's former `.env` has already been moved to `../private/relayix-config/legacy.env` as a private migration backup. Do not put either file in Git.
 
-For another existing installation, transfer the existing settings into an external JSON file before removing its old dotenv file. Preserve the database password and project name exactly; do not regenerate them for an existing PostgreSQL volume. `config/deployment.example.json` contains only nonsecret defaults, not replacement credentials. Keep the private directory at 700 and files at 600.
+For another existing installation, transfer the existing settings into an external JSON file before removing its old dotenv file. Preserve the database password, database role/name and project name exactly until a database transfer is complete. `POSTGRES_USER` and `POSTGRES_DB` in the external configuration can select an existing role/database. Do not regenerate credentials for an existing PostgreSQL volume. `config/deployment.example.json` contains only nonsecret defaults, not replacement credentials. Keep the private directory at 700 and files at 600.
 
 Back up with the wrapper, which supplies the private settings without printing them:
 
@@ -29,3 +29,11 @@ Use `RELAYIX_CONFIG_FILE` to select an alternative external JSON file. The wrapp
 The GitHub deployment workflow reads `production` environment Secrets, creates a private candidate outside the checkout, and uses `scripts/deploy.sh` to back up, pull, replace only the app and check health. Its candidate must retain the active database password. On failure the previous configuration/app is restored; rollback does not restore database data. See [GitHub setup](docs/GITHUB.md).
 
 To roll back this release, select the retained `relayix:0.6.0` image in the private configuration and run `scripts/compose.sh up -d --no-deps app`.
+
+## Rename an existing deployment
+
+Changing a Compose project name selects a different volume. Stop the old application before taking a final `pg_dump -Fc` backup, then start only the target `db` service with project/role/database set to `relayix`. Restore the archive into the empty target database with `pg_restore --no-owner --no-acl --exit-on-error`. Do not start the new app until the restore completes. Compare record counts and configuration before enabling the worker, then check `/healthz`, login and existing routes.
+
+Retain the original stopped containers, volume and private configuration backup until the transferred deployment is verified. A rollback after new writes requires preserving those new writes too; switching to the old volume alone would discard them. Never run `down -v` during this procedure.
+
+The session cookie and local browser-storage keys now use `relayix`. Sign in again after upgrading. Saved account preferences remain in PostgreSQL. Historical migration files deliberately retain their original content because SQLx verifies their checksums.

@@ -1,6 +1,6 @@
 services:
   app:
-    image: ${RELAYIX_IMAGE:-${RELAYNEST_IMAGE:-relayix:0.6.1}}
+    image: ${RELAYIX_IMAGE:-relayix:0.6.1}
     restart: unless-stopped
     environment:
       DATABASE_URL: ${RELAYIX_DATABASE_URL:?use scripts/compose.sh with private configuration}
@@ -24,13 +24,13 @@ services:
     image: postgres:17-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: relaynest
+      POSTGRES_USER: ${POSTGRES_USER:-relayix}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
-      POSTGRES_DB: relaynest
+      POSTGRES_DB: ${POSTGRES_DB:-relayix}
     volumes:
       - db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U relaynest -d relaynest']
+      test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
       interval: 5s
       timeout: 3s
       retries: 15
