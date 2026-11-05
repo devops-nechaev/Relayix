@@ -2,6 +2,8 @@
 
 ## 0.6.4 Beta — 2026-11-05
 
+- Distinguish plain MTProxy secrets from dd/ee markers by their full length and preserve raw keys beginning with those bytes; cover each prefix deterministically.
+
 - Keep webhook priority and tags optional (default priority 3 and empty tags). Route tags are UI labels only and never gate delivery; history filters match route labels or message tags. Preserve the legacy required_tag API field as UI metadata.
 - Return routing diagnostics with queue counts, matched filters and per-recipient exclusion reasons, and correlate routing decisions in service logs without exposing credentials or message bodies.
 - Add Test webhook to Routes, with priority, optional comma-separated tags, JSON copying, real event submission and a link to delivery results.
