@@ -160,7 +160,7 @@ with sync_playwright() as p:
         expect(page.locator('.delivery-title').filter(has_text='Browser route test')).to_have_count(4)
         delivery_table=page.get_by_role('table', name='Deliveries', exact=True)
         expect(delivery_table.locator('tbody tr').first.locator('td').nth(6)).not_to_contain_text('Details')
-        expect(delivery_table.locator('tbody tr').first.locator('td').nth(7).get_by_role('button',name='Details',exact=True)).to_be_visible()
+        expect(delivery_table.locator('tbody tr').first.locator('td').nth(7).get_by_role('button',name=re.compile('^View attempts '))).to_be_visible()
         page.get_by_role('button',name='Notification',exact=True).click()
         expect(delivery_table.get_by_role('columnheader',name='Notification')).to_have_attribute('aria-sort','ascending')
         menu=page.locator('.column-menu')
