@@ -34,7 +34,7 @@ Compose pulls the ready-made images, starts PostgreSQL, waits for it to become r
 
 The containers are named `relayix-app` and `relayix-db` and share `relayix-network`. PostgreSQL is available only inside that network. Its data persists in a named Docker volume.
 
-## Existing external PostgreSQL
+## Existing external PostgreSQL (TLS optional)
 
 Create the database and login role on your PostgreSQL server first. The role must be able to create and alter objects in that database.
 
@@ -61,7 +61,18 @@ docker compose up -d
 
 Open `http://SERVER_IP:8080` and sign in as `admin`. In external mode, only Relayix starts; the bundled PostgreSQL service is disabled.
 
-### TLS and a private CA
+### Without TLS
+
+TLS is not required for an external PostgreSQL server. If your server does not use TLS, set the following in the same `.env` file, replacing the template's `verify-full` setting:
+
+```dotenv
+POSTGRES_SSLMODE=disable
+POSTGRES_CA_PATH=
+```
+
+No certificate is needed. Do not leave `POSTGRES_SSLMODE` empty to disable TLS; select `disable` explicitly.
+
+### Optional TLS and a private CA
 
 Set these values in the same `.env` file:
 

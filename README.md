@@ -36,10 +36,10 @@ Choose the database in `.env`:
 | `DATABASE_MODE` | `local` | `external` |
 | `POSTGRES_HOST` | Leave empty | Server hostname or IP |
 | `POSTGRES_PASSWORD` | Your new database password | Existing database password |
-| `POSTGRES_SSLMODE` | Ignored | `verify-full` for TLS, `disable` for a server without TLS |
+| `POSTGRES_SSLMODE` | Ignored | `disable` without TLS; `verify-full` for verified TLS |
 | `POSTGRES_CA_PATH` | Leave empty | Optional path to the CA certificate on the Docker host |
 
-For an external server, also set `POSTGRES_PORT`, `POSTGRES_USER` and `POSTGRES_DB` to its existing values. The bundled PostgreSQL service is disabled in external mode. TLS and a private CA use the same Compose file and command. See the [setup guide](docs/DEPLOYMENT.md) for examples.
+For an external server, also set `POSTGRES_PORT`, `POSTGRES_USER` and `POSTGRES_DB` to its existing values. The bundled PostgreSQL service is disabled in external mode. **TLS is optional for an external database.** For a server without TLS, set `POSTGRES_SSLMODE=disable` and leave `POSTGRES_CA_PATH` empty; replace the template's `verify-full` value explicitly. Optional TLS and a private CA use the same Compose file and command. See the [setup guide](docs/DEPLOYMENT.md) for examples.
 
 ## Updating
 
