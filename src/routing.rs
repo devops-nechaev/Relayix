@@ -15,6 +15,7 @@ struct Endpoint {
     min_priority: i32,
     required_tag: Option<String>,
     token_hash: String,
+    template_id:Option<Uuid>,
 }
 
 struct Event {
@@ -101,7 +102,7 @@ fn report(endpoint: &Endpoint, event: &Event, destinations: Vec<Destination>) ->
 }
 
 async fn enqueue(s: &AppState, endpoint: Endpoint, payload: Value, test: bool, preview: bool, idempotency: Option<String>) -> ApiResult<Value> {
-    let event = parse_event(&payload).map_err(|message| {
+    let mut event = parse_event(&payload).map_err(|message| {
         tracing::warn!(route_id=%endpoint.id, reason="invalid_payload", error=message, test, "webhook payload rejected");
         err(StatusCode::BAD_REQUEST, message)
     })?;
@@ -120,6 +121,14 @@ async fn enqueue(s: &AppState, endpoint: Endpoint, payload: Value, test: bool, p
             return Ok(Json(json!({"event_id":id,"queued":queued,"routing":routing,"duplicate":true})));
         }
     }
+    let mut effective=payload.clone();let mut snapshot:Option<Value>=None;let mut template_result:Option<Value>=None;
+    if let Some(id)=endpoint.template_id{
+        if let Some(template)=sqlx::query_as::<_,crate::templates::Template>("SELECT * FROM message_templates WHERE id=$1").bind(id).fetch_optional(&mut *tx).await.map_err(db_error)?{
+            let (rendered,result)=crate::templates::render(&template,&payload).map_err(|e|err(StatusCode::BAD_REQUEST,e))?;
+            if crate::message::event_title(&rendered).trim().is_empty()&&crate::message::event_message(&rendered).trim().is_empty(){return Err(err(StatusCode::BAD_REQUEST,"Template could not produce a message; provide its required fields or an original title/message"));}
+            event=parse_event(&rendered).map_err(|e|err(StatusCode::BAD_REQUEST,e))?;effective=rendered;snapshot=Some(serde_json::to_value(template).unwrap());template_result=Some(result);
+        }
+    }
     let destinations = sqlx::query_as::<_, Destination>(
         "SELECT c.id,c.name,c.kind,c.enabled FROM channels c JOIN route_channels rc ON rc.channel_id=c.id WHERE rc.route_id=$1 ORDER BY c.created_at,c.id")
         .bind(endpoint.id).fetch_all(&mut *tx).await.map_err(db_error)?;
@@ -128,6 +137,7 @@ async fn enqueue(s: &AppState, endpoint: Endpoint, payload: Value, test: bool, p
         .bind(endpoint.id).fetch_all(&mut *tx).await.map_err(db_error)?;
     let mut routing=serde_json::to_value(routing).unwrap();
     routing["fallback_recipients"]=json!(fallback.iter().map(|(id,name,enabled)|json!({"id":id,"name":name,"enabled":enabled})).collect::<Vec<_>>());
+    if let Some(result)=&template_result{routing["template"]=result.clone();}
     if preview {
         let would_queue=routing["recipients"].as_array().unwrap().iter().filter(|r|r["queued"]==true).count();
         for recipient in routing["recipients"].as_array_mut().unwrap() {
@@ -135,16 +145,16 @@ async fn enqueue(s: &AppState, endpoint: Endpoint, payload: Value, test: bool, p
             if recipient["would_queue"]==true {recipient["reason"]=json!("would_queue");}
         }
         if would_queue>0 {routing["reason"]=json!("would_queue");}
-        return Ok(Json(json!({"preview":true,"queued":0,"would_queue":would_queue,"routing":routing})));
+        return Ok(Json(json!({"preview":true,"queued":0,"would_queue":would_queue,"routing":routing,"rendered":{"title":event.title,"message":event.message}})));
     }
     if !endpoint.enabled {
         tracing::info!(route_id=%endpoint.id, reason=%routing["reason"], test, "webhook routing rejected");
         return Err((StatusCode::FORBIDDEN, Json(json!({"error":"Route disabled","queued":0,"routing":routing}))));
     }
     let event_id = Uuid::new_v4();
-    sqlx::query("INSERT INTO events(id,route_id,title,message,priority,tags,payload,routing,idempotency_hash,payload_hash) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)")
+    sqlx::query("INSERT INTO events(id,route_id,title,message,priority,tags,payload,routing,idempotency_hash,payload_hash,rendered_payload,template_snapshot,template_result) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)")
         .bind(event_id).bind(endpoint.id).bind(&event.title).bind(&event.message).bind(event.priority)
-        .bind(json!(event.tags)).bind(payload).bind(&routing).bind(idempotency).bind(payload_hash).execute(&mut *tx).await.map_err(db_error)?;
+        .bind(json!(event.tags)).bind(payload).bind(&routing).bind(idempotency).bind(payload_hash).bind(if snapshot.is_some(){Some(effective)}else{None}).bind(snapshot).bind(template_result).execute(&mut *tx).await.map_err(db_error)?;
     let mut queued = 0;
     for recipient in routing["recipients"].as_array().unwrap().iter().filter(|recipient| recipient["queued"]==true) {
         sqlx::query("INSERT INTO deliveries(id,event_id,channel_id) VALUES($1,$2,$3)")
@@ -169,7 +179,7 @@ async fn enqueue(s: &AppState, endpoint: Endpoint, payload: Value, test: bool, p
 pub async fn ingest(State(s): State<AppState>, Path(slug): Path<String>, headers: HeaderMap,
                     Json(payload): Json<Value>) -> ApiResult<Value> {
     let endpoint = sqlx::query_as::<_, Endpoint>(
-        "SELECT id,name,enabled,min_priority,required_tag,token_hash FROM routes WHERE slug=$1")
+        "SELECT id,name,enabled,min_priority,required_tag,token_hash,message_template_id AS template_id FROM routes WHERE slug=$1")
         .bind(slug).fetch_optional(&s.db).await.map_err(db_error)?
         .ok_or_else(|| err(StatusCode::NOT_FOUND, "Unknown route"))?;
     let supplied = headers.get("x-relay-key").and_then(|value| value.to_str().ok()).unwrap_or("");
@@ -191,7 +201,7 @@ pub async fn test_route(State(s): State<AppState>, Path(id): Path<Uuid>, headers
                         Json(payload): Json<Value>) -> ApiResult<Value> {
     auth::authenticated(&headers, &s).await?;
     let endpoint = sqlx::query_as::<_, Endpoint>(
-        "SELECT id,name,enabled,min_priority,required_tag,token_hash FROM routes WHERE id=$1")
+        "SELECT id,name,enabled,min_priority,required_tag,token_hash,message_template_id AS template_id FROM routes WHERE id=$1")
         .bind(id).fetch_optional(&s.db).await.map_err(db_error)?
         .ok_or_else(|| err(StatusCode::NOT_FOUND, "Route not found"))?;
     enqueue(&s, endpoint, payload, true, false, None).await
@@ -200,7 +210,7 @@ pub async fn test_route(State(s): State<AppState>, Path(id): Path<Uuid>, headers
 pub async fn preview_route(State(s): State<AppState>, Path(id): Path<Uuid>, headers: HeaderMap,
                            Json(payload): Json<Value>) -> ApiResult<Value> {
     auth::authenticated(&headers,&s).await?;
-    let endpoint=sqlx::query_as::<_,Endpoint>("SELECT id,name,enabled,min_priority,required_tag,token_hash FROM routes WHERE id=$1")
+    let endpoint=sqlx::query_as::<_,Endpoint>("SELECT id,name,enabled,min_priority,required_tag,token_hash,message_template_id AS template_id FROM routes WHERE id=$1")
         .bind(id).fetch_optional(&s.db).await.map_err(db_error)?.ok_or_else(||err(StatusCode::NOT_FOUND,"Route not found"))?;
     enqueue(&s,endpoint,payload,true,true,None).await
 }
@@ -210,7 +220,7 @@ mod tests {
     use super::*;
     fn endpoint(tag: Option<&str>, minimum: i32) -> Endpoint {
         Endpoint { id: Uuid::new_v4(), name: "Test route".to_owned(), enabled: true, min_priority: minimum,
-            required_tag: tag.map(str::to_owned), token_hash: String::new() }
+            required_tag: tag.map(str::to_owned), token_hash: String::new(),template_id:None }
     }
     #[test]
     fn optional_fields_and_configured_filters() {

@@ -34,7 +34,7 @@ impl Preferences {
         }}
     }
     pub fn validate(&self)->Result<()> {
-        if self.tables.len()>5{return Err(anyhow!("Unknown table settings"));}
+        if self.tables.len()>6{return Err(anyhow!("Unknown table settings"));}
         for (id,settings) in &self.tables {
             let columns=table::columns(id).ok_or_else(||anyhow!("Unknown table settings"))?;
             if !matches!(settings.sort_dir.as_str(),"asc"|"desc")||!columns.contains(&settings.sort_by.as_str())||matches!(settings.sort_by.as_str(),"actions"|"details"){return Err(anyhow!("Invalid table sort"));}

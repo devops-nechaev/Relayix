@@ -12,7 +12,7 @@ pub async fn events(State(s):State<AppState>,h:HeaderMap,Query(q):Query<EventQue
  let condition=" FROM events e JOIN routes r ON r.id=e.route_id WHERE ($1::uuid IS NULL OR e.route_id=$1) AND ($2::text IS NULL OR COALESCE(e.routing->>'reason','legacy')=$2) AND ($3::text IS NULL OR e.title ILIKE $3 OR e.message ILIKE $3 OR r.name ILIKE $3)";
  let mut count=sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT COUNT(*)");count.push(condition);
  let (total,):(i64,)=count.build_query_as().bind(q.route_id).bind(q.reason.as_deref().filter(|v|!v.is_empty())).bind(&search).fetch_one(&s.db).await.map_err(db_error)?;
- let mut rows=sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT jsonb_build_object('id',e.id,'route_id',e.route_id,'route_name',r.name,'title',e.title,'message',e.message,'priority',e.priority,'tags',e.tags,'routing',e.routing,'_source',e.payload,'created_at',e.created_at,'deliveries',(SELECT COUNT(*) FROM deliveries d WHERE d.event_id=e.id),'sent',(SELECT COUNT(*) FROM deliveries d WHERE d.event_id=e.id AND d.status='sent'))");
+ let mut rows=sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT jsonb_build_object('id',e.id,'route_id',e.route_id,'route_name',r.name,'route_icon',r.icon,'title',e.title,'message',e.message,'priority',e.priority,'tags',e.tags,'routing',e.routing,'_source',COALESCE(e.rendered_payload,e.payload),'created_at',e.created_at,'deliveries',(SELECT COUNT(*) FROM deliveries d WHERE d.event_id=e.id),'sent',(SELECT COUNT(*) FROM deliveries d WHERE d.event_id=e.id AND d.status='sent'))");
  rows.push(condition).push(order).push(" LIMIT $4 OFFSET $5");
  let items:Vec<(Value,)>=rows.build_query_as().bind(q.route_id).bind(q.reason.as_deref().filter(|v|!v.is_empty())).bind(search).bind(size).bind((page-1)*size).fetch_all(&s.db).await.map_err(db_error)?;
  let items:Vec<Value>=items.into_iter().map(|(mut item,)|{
@@ -20,6 +20,11 @@ pub async fn events(State(s):State<AppState>,h:HeaderMap,Query(q):Query<EventQue
   let title=message::event_title(&payload);item["has_title"]=json!(!title.is_empty());item
  }).collect();
  Ok(Json(json!({"items":items,"total":total,"page":page,"page_size":size})))
+}
+pub async fn event_details(State(s):State<AppState>,h:HeaderMap,Path(id):Path<Uuid>)->ApiResult<Value>{
+ auth::authenticated(&h,&s).await?;
+ let row:Option<(Value,)>=sqlx::query_as("SELECT jsonb_build_object('id',e.id,'route_id',e.route_id,'route_name',r.name,'route_icon',r.icon,'title',e.title,'message',e.message,'priority',e.priority,'tags',e.tags,'routing',e.routing,'created_at',e.created_at,'original_payload',e.payload,'rendered_payload',e.rendered_payload,'template',e.template_snapshot,'template_result',e.template_result,'has_title',COALESCE(e.rendered_payload,e.payload)->>'title' IS NOT NULL AND BTRIM(COALESCE(e.rendered_payload,e.payload)->>'title')<>'','recipients',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',d.id,'channel_id',c.id,'channel_name',c.name,'channel_kind',c.kind,'status',d.status,'attempts',d.attempts,'is_fallback',d.is_fallback,'error',d.error,'created_at',d.created_at,'sent_at',d.sent_at) ORDER BY LOWER(c.name),c.id) FROM deliveries d JOIN channels c ON c.id=d.channel_id WHERE d.event_id=e.id),'[]'::jsonb)) FROM events e JOIN routes r ON r.id=e.route_id WHERE e.id=$1").bind(id).fetch_optional(&s.db).await.map_err(db_error)?;
+ let mut value=row.ok_or_else(||err(StatusCode::NOT_FOUND,"Event not found"))?.0;let source=if value["rendered_payload"].is_object(){&value["rendered_payload"]}else{&value["original_payload"]};let has_title=!message::event_title(source).is_empty();value["has_title"]=json!(has_title);Ok(Json(value))
 }
 pub async fn attempts(State(s):State<AppState>,h:HeaderMap,Path(id):Path<Uuid>)->ApiResult<Value>{
  auth::authenticated(&h,&s).await?;
@@ -32,7 +37,7 @@ pub async fn attempts(State(s):State<AppState>,h:HeaderMap,Path(id):Path<Uuid>)-
 async fn claim(s:&AppState)->Result<Option<(Uuid,i32,Uuid,i32,Value)>> {
  let mut tx=s.db.begin().await?;
  let row:Option<(Uuid,i32,Uuid,i32,Value)>=sqlx::query_as(
-  "SELECT d.id,e.priority,d.channel_id,d.attempts+1 AS number,e.payload FROM deliveries d JOIN events e ON e.id=d.event_id WHERE (d.status='queued' AND d.next_attempt_at<=NOW()) OR (d.status='processing' AND d.locked_at<NOW()-INTERVAL '2 minutes') ORDER BY d.created_at FOR UPDATE OF d SKIP LOCKED LIMIT 1").fetch_optional(&mut *tx).await?;
+  "SELECT d.id,e.priority,d.channel_id,d.attempts+1 AS number,COALESCE(e.rendered_payload,e.payload) FROM deliveries d JOIN events e ON e.id=d.event_id WHERE (d.status='queued' AND d.next_attempt_at<=NOW()) OR (d.status='processing' AND d.locked_at<NOW()-INTERVAL '2 minutes') ORDER BY d.created_at FOR UPDATE OF d SKIP LOCKED LIMIT 1").fetch_optional(&mut *tx).await?;
  if let Some((id,_,_,number,_))=&row {
   sqlx::query("UPDATE delivery_attempts SET status='interrupted',finished_at=NOW(),error='Worker lease expired; outcome unknown' WHERE delivery_id=$1 AND status='processing'").bind(id).execute(&mut *tx).await?;
   sqlx::query("UPDATE deliveries SET status='processing',locked_at=NOW(),attempts=attempts+1,cycle_attempts=cycle_attempts+1 WHERE id=$1").bind(id).execute(&mut *tx).await?;

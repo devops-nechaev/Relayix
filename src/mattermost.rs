@@ -19,7 +19,7 @@ pub fn validate(cfg:&Value)->Result<()> {
     }
     Ok(())
 }
-fn api_url(cfg:&Value,parts:&[&str])->Result<url::Url> {
+pub(crate) fn api_url(cfg:&Value,parts:&[&str])->Result<url::Url> {
     let mut url=url::Url::parse(cfg["url"].as_str().unwrap())?;
     let already_api=url.path().trim_end_matches('/').ends_with("/api/v4");
     let mut path=url.path_segments_mut().map_err(|_|anyhow!("Invalid Mattermost server URL"))?;

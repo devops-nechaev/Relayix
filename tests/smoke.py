@@ -60,7 +60,7 @@ def main():
     api = Client(TOKEN)
     for _ in range(90):
         try:
-            if api.ok('/healthz')['version'] == '0.7.4':
+            if api.ok('/healthz')['version'] == '0.8.0':
                 break
         except (URLError, AssertionError):
             time.sleep(1)
@@ -68,7 +68,8 @@ def main():
         raise AssertionError('Application did not start')
     assert Client().request('/api/channels')[0] == 401
     assert api.request('/api/channels', headers={'Authorization': 'Bearer invalid'})[0] == 401
-    assert api.request('/api/templates')[0] == 404
+    assert api.ok('/api/templates') == []
+    assert Client().request('/api/templates')[0] == 401
     assert api.last_headers['Cache-Control'] == 'no-store'
     admin = Client()
     assert admin.request('/api/auth/login', {'username': 'admin', 'password': 'wrong'}, 'POST')[0] == 401
@@ -181,7 +182,7 @@ def main():
     assert first['total'] == len(ids) and len(first['items']) == len(second['items']) == 3
     assert not ({d['id'] for d in first['items']} & {d['id'] for d in second['items']})
     assert api.request('/api/deliveries/' + deliveries[0]['id'] + '/retry', {}, 'POST')[0] == 409
-    print('PASS: shared routes/queue, server-side status/channel/route/date/search filters and pagination; Templates API removed', flush=True)
+    print('PASS: shared routes/queue, server-side status/channel/route/date/search filters and pagination; optional templates authenticated', flush=True)
 
     assert all(d['tags'] == ['deploy', 'ops'] for d in deliveries)
     assert api.ok('/api/deliveries?tag=deploy')['total'] == len(ids)
@@ -328,6 +329,8 @@ def main():
     verify_content(api, Client())
     from delivery_groups import verify as verify_groups
     verify_groups(api, Client())
+    from templates_contract import verify as verify_templates
+    verify_templates(api, Client())
     print('All smoke tests passed.', flush=True)
 
 

@@ -1,7 +1,7 @@
 //! Delivery presentation is independent from the event title used in history.
 use crate::*;
 
-pub const TITLE_SQL:&str="COALESCE(CASE WHEN jsonb_typeof(e.payload->'title')='string' AND e.payload->>'title' ~ '[^[:space:]]' THEN e.payload->>'title' END,CASE WHEN jsonb_typeof(e.payload->'alertname')='string' AND e.payload->>'alertname' ~ '[^[:space:]]' THEN e.payload->>'alertname' END,'')";
+pub const TITLE_SQL:&str="COALESCE(CASE WHEN jsonb_typeof(COALESCE(e.rendered_payload,e.payload)->'title')='string' AND COALESCE(e.rendered_payload,e.payload)->>'title' ~ '[^[:space:]]' THEN COALESCE(e.rendered_payload,e.payload)->>'title' END,CASE WHEN jsonb_typeof(COALESCE(e.rendered_payload,e.payload)->'alertname')='string' AND COALESCE(e.rendered_payload,e.payload)->>'alertname' ~ '[^[:space:]]' THEN COALESCE(e.rendered_payload,e.payload)->>'alertname' END,'')";
 
 pub struct Rendered {pub text:String,pub html:bool}
 /// Missing/blank titles never inherit the history's "Notification" fallback.
@@ -69,7 +69,7 @@ fn links(kind:&str,text:&str)->String {
  let mut out=String::new();let mut literal=String::new();let mut index=0;
  while index<text.len(){
   let rest=&text[index..];
-  if rest.starts_with("\\["){literal.push('[');index+=2;continue;}
+  if rest.starts_with("\\[")||rest.starts_with("\\]"){literal.push(rest.as_bytes()[1] as char);index+=2;continue;}
   if rest.starts_with('['){
    if let Some((length,label,url))=link_at(rest){
     out.push_str(&escaped(kind,&literal));literal.clear();

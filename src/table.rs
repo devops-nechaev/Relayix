@@ -31,6 +31,7 @@ pub fn columns(id:&str)->Option<&'static [&'static str]>{
  Some(match id{
   "deliveries"|"dashboard_deliveries"=>&["created_at","title","tags","route","recipients","details"],
   "incoming"=>&["created_at","title","route","routing","deliveries","details"],
+  "templates"=>&["created_at","name","version","updated_at","routes","actions"],
   "users"=>&["created_at","user","role","status","actions"],
   "alert_history"=>&["created_at","rule","recipient","status","details"],
   _=>return None,

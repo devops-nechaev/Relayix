@@ -1,0 +1,5 @@
+import React from 'react';
+import {GitBranch,Rocket,FlaskConical,Database,Activity,Bell,Shield,Package,Server,Wrench,Layers,Zap} from 'lucide-react';
+export const routeIcons=[['git-branch','Branch',GitBranch],['rocket','Rocket',Rocket],['flask-conical','Tests',FlaskConical],['database','Database',Database],['activity','Activity',Activity],['bell','Bell',Bell],['shield','Shield',Shield],['package','Package',Package],['server','Server',Server],['wrench','Tools',Wrench],['layers','Layers',Layers],['zap','Lightning',Zap]];
+export function RouteIcon({name,size=20}){const Icon=routeIcons.find(([key])=>key===name)?.[2]||GitBranch;return <Icon size={size} aria-hidden="true"/>}
+export function RouteIconPicker({value,onChange}){return <fieldset className="route-icon-picker"><legend>Icon</legend><div role="group" aria-label="Route icon">{routeIcons.map(([key,label,Icon])=><button type="button" key={key} aria-label={`Use ${label} icon`} aria-pressed={(value||'git-branch')===key} className={(value||'git-branch')===key?'selected':''} onClick={()=>onChange(key)}><Icon size={21}/><span>{label}</span></button>)}</div></fieldset>}

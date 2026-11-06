@@ -25,11 +25,21 @@ class HTTP(BaseHTTPRequestHandler):
                 received.append({'path': self.path, 'method': 'GET', 'authorization': self.headers.get('Authorization'), 'body': ''})
             if self.headers.get('Authorization') != 'Bearer ' + credentials['mattermost_token']:
                 return self.reply(401, {'message': 'Invalid token'})
+            if self.path.startswith('/api/v4/channels/'):
+                return self.reply(200, {'id': self.path.rsplit('/',1)[1]})
             if self.path == '/api/v4/users/me':
                 return self.reply(200, {'id': 's' * 26})
             if self.path == '/api/v4/users/username/ops-bot':
                 return self.reply(200, {'id': 'r' * 26, 'username': 'ops-bot'})
             return self.reply(404, {'message': 'Not found'})
+        if self.path in ('/v1/health','/health'):
+            return self.reply(200, {'healthy':True,'health':'green'})
+        if self.path.endswith('/account/whoami'):
+            return self.reply(200, {'user_id':'@example:test'})
+        if self.path.endswith('/joined_rooms'):
+            return self.reply(200, {'joined_rooms':['!test:local']})
+        if self.path == '/discord-diagnostic':
+            return self.reply(200, {'id':'example-webhook'})
         if self.path == '/received':
             with lock:
                 self.reply(200, received)
@@ -75,7 +85,7 @@ class SMTP(socketserver.StreamRequestHandler):
                 reply('250-mock\r\n250 AUTH PLAIN')
             elif cmd.upper().startswith('AUTH PLAIN'):
                 reply('235 Authentication successful')
-            elif cmd.upper().startswith(('MAIL FROM:', 'RCPT TO:', 'RSET')):
+            elif cmd.upper().startswith(('MAIL FROM:', 'RCPT TO:', 'RSET', 'NOOP')):
                 reply('250 OK')
             elif cmd.upper() == 'DATA':
                 reply('354 End with a dot')
