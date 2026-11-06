@@ -364,7 +364,7 @@ with sync_playwright() as p:
         dialog.get_by_role('button', name='Cancel', exact=True).click()
     page.get_by_role('button', name='Routes', exact=True).click()
     page.get_by_role('button', name='Add Route', exact=True).click()
-    expect(dialog.get_by_text('Message template', exact=False)).to_have_count(0)
+    expect(dialog.get_by_label('Message template (optional)',exact=True)).to_have_value('')
     dialog.get_by_role('button', name='Cancel', exact=True).click()
     page.locator('nav').get_by_role('button', name='Deliveries', exact=True).click()
     filter_form = page.get_by_role('form', name='Delivery filters')
