@@ -128,3 +128,4 @@ html{scrollbar-gutter:stable}
 @media(max-width:1050px){.dashboard-configuration{grid-template-columns:1fr}}@media(max-width:700px){.template-editor-grid{grid-template-columns:1fr}.route-icon-picker>div{grid-template-columns:repeat(4,1fr)}.recipient-picker-filters{grid-template-columns:1fr}.recipient-availability{display:none}.recipient-picker-summary{align-items:flex-start}.compact-recipient-count{display:none}}
 
 .recipient-picker-filters input,.recipient-picker-filters select{width:100%;min-width:0;padding:10px 12px;border:1px solid var(--border);background:var(--field);color:var(--text);border-radius:8px}.recipient-choice .provider{flex:none}.compact-item .provider svg,.compact-item .provider img{width:24px;height:24px}
+.recipient-service-counts .provider{flex:none}.recipient-service-counts .provider svg,.recipient-service-counts .provider img{width:16px;height:16px}
