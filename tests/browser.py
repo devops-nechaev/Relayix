@@ -316,7 +316,7 @@ with sync_playwright() as p:
     page.get_by_role('button', name='Add Route', exact=True).click()
     expect(dialog.get_by_text('Message template', exact=False)).to_have_count(0)
     dialog.get_by_role('button', name='Cancel', exact=True).click()
-    page.get_by_role('button', name='Deliveries', exact=True).click()
+    page.locator('nav').get_by_role('button', name='Deliveries', exact=True).click()
     filter_form = page.get_by_role('form', name='Delivery filters')
     filter_form.get_by_label('Status', exact=True).select_option('failed')
     filter_form.get_by_label('Channel', exact=True).select_option(label='Broken webhook')
@@ -334,7 +334,7 @@ with sync_playwright() as p:
     expect(filter_form.get_by_label('Status', exact=True)).to_have_value('')
     for name in ['Dashboard', 'Incoming webhooks', 'Deliveries', 'Failure alerts', 'Users']:
         page.set_viewport_size({'width': 390, 'height': 844})
-        page.get_by_role('button', name=name, exact=True).click()
+        page.locator('nav').get_by_role('button', name=name, exact=True).click()
         page.wait_for_timeout(250)
         assert page.evaluate('document.documentElement.scrollWidth <= window.innerWidth'), f'{name}: mobile horizontal overflow'
     page.screenshot(path=str(OUT / 'users-mobile.png'), full_page=True)
@@ -436,7 +436,7 @@ with sync_playwright() as p:
         page.wait_for_timeout(500)
     else:
         raise AssertionError('Tagged event was not delivered')
-    page.get_by_role('button', name='Deliveries', exact=True).click()
+    page.locator('nav').get_by_role('button', name='Deliveries', exact=True).click()
     filter_form.get_by_label('Tag', exact=True).fill('deploy')
     with page.expect_response(lambda r: '/api/deliveries?' in r.url and 'tag=deploy' in r.url) as filtered:
         filter_form.get_by_role('button', name='Apply filters', exact=True).click()
@@ -446,7 +446,7 @@ with sync_playwright() as p:
     expect(filter_form.get_by_label('Tag', exact=True)).to_have_value('beta')
     expect(page.locator('tbody tr')).to_have_count(1)
     page.reload()
-    page.get_by_role('button', name='Deliveries', exact=True).click()
+    page.locator('nav').get_by_role('button', name='Deliveries', exact=True).click()
     expect(filter_form.get_by_label('Tag', exact=True)).to_have_value('beta')
     expect(page.locator('tbody tr')).to_have_count(1)
     # No localStorage or shared cookies in these contexts: account settings must come from PostgreSQL.
@@ -544,7 +544,7 @@ with sync_playwright() as p:
     page.screenshot(path=str(OUT / 'relayix-routes.png'), full_page=True)
     for name in ['Dashboard', 'Routes']:
         page.set_viewport_size({'width': 390, 'height': 844})
-        page.get_by_role('button', name=name, exact=True).click()
+        page.locator('nav').get_by_role('button', name=name, exact=True).click()
         page.wait_for_timeout(250)
         assert page.evaluate('document.documentElement.scrollWidth <= window.innerWidth'), name + ' mobile overflow'
     page.screenshot(path=str(OUT / 'relayix-routes-mobile.png'), full_page=True)
@@ -645,7 +645,7 @@ with sync_playwright() as p:
     dialog.get_by_role('button', name='Cancel', exact=True).click()
     page.get_by_role('button', name='Dashboard', exact=True).click()
     expect(page.locator('.delivery-channel .provider').first).to_be_visible()
-    page.get_by_role('button', name='Deliveries', exact=True).click()
+    page.locator('nav').get_by_role('button', name='Deliveries', exact=True).click()
     page.get_by_role('button', name='Reset filters', exact=True).click()
     expect(page.locator('.delivery-channel .provider').first).to_be_visible()
     page.screenshot(path=str(OUT / 'relayix-delivery-icons.png'), full_page=True)
