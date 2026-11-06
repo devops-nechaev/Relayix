@@ -1,6 +1,10 @@
-# Relayix 0.7.1 Beta
-
-A self-hosted notification hub: Rust / Axum / React / PostgreSQL. English interface, light and dark themes.
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/relayix-header-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="docs/brand/relayix-header-light.svg">
+    <img src="docs/brand/relayix-header-light.svg" width="480" alt="Relayix Beta — Route once. Notify anywhere.">
+  </picture>
+</h1>
 
 ## Docker Compose quick start
 
@@ -9,7 +13,7 @@ You need **Git and Docker with Compose v2.20+**. The repository root contains `c
 For a new installation:
 
 ```bash
-git clone https://github.com/devops-nechaev/Relayix.git
+git clone https://github.com/opsforge89/Relayix.git
 cd Relayix
 cp relayix.env.example .env
 ```
@@ -38,6 +42,8 @@ Choose the database in `.env`:
 For an external server, also set `POSTGRES_PORT`, `POSTGRES_USER` and `POSTGRES_DB` to its existing values. The bundled PostgreSQL service is disabled in external mode. TLS and a private CA use the same Compose file and command. See the [setup guide](docs/DEPLOYMENT.md) for examples.
 
 ## Updating
+
+Current published image: `ghcr.io/opsforge89/relayix:0.7.1`.
 
 Change the app image tag in your `compose.yaml`, then run:
 

@@ -9,7 +9,7 @@ import subprocess
 from deployment import ROOT, read_config, database_settings
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument('--repo', default='devops-nechaev/Relayix')
+parser.add_argument('--repo', default='opsforge89/Relayix')
 parser.add_argument('--environment', default='production')
 parser.add_argument('--dry-run', action='store_true', help='List setting names without contacting GitHub')
 args = parser.parse_args()

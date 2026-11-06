@@ -13,10 +13,10 @@ The path is relative to the repository directory. `scripts/write_config.py` crea
 Install Git, Docker Engine with Docker Compose v2, and Python 3.10+. Your user must have access to Docker. Rust and Node.js run inside the build containers.
 
 ```bash
-git clone https://github.com/devops-nechaev/Relayix.git
+git clone https://github.com/opsforge89/Relayix.git
 cd Relayix
 docker compose version
-docker pull ghcr.io/devops-nechaev/relayix:0.7.1
+docker pull ghcr.io/opsforge89/relayix:0.7.1
 ```
 
 This guide is for existing installations and automated deployments that use the private JSON wrapper. New users should follow the [standard Docker Compose setup](DEPLOYMENT.md). The published image is ready to run; source compilation is only needed for development.

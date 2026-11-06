@@ -7,7 +7,7 @@ Requirements: Git and Docker Engine with Docker Compose v2.20 or newer. Compose 
 Clone the repository and copy the settings template for a new installation:
 
 ```bash
-git clone https://github.com/devops-nechaev/Relayix.git
+git clone https://github.com/opsforge89/Relayix.git
 cd Relayix
 cp relayix.env.example .env
 ```

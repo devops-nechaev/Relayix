@@ -1,13 +1,13 @@
 # GitHub setup and delivery
 
-The checkout is prepared for a repository named `relayix`. The workflows derive the registry name from `github.repository`; no owner name or registry password is stored in the source.
+The checkout is prepared for a repository named `relayix`. The workflows derive the registry name from `github.repository`; the workflow has no hardcoded owner or registry password. Compose and documentation use the current public package namespace.
 
 ## First publication
 
-The local origin is connected to https://github.com/devops-nechaev/Relayix.git and based on its existing LICENSE commit. Once the checks and review are complete, publish from this directory:
+The local origin is connected to https://github.com/opsforge89/Relayix.git and based on its existing LICENSE commit. Once the checks and review are complete, publish from this directory:
 
 ```bash
-git remote -v  # origin: https://github.com/devops-nechaev/Relayix.git
+git remote -v  # origin: https://github.com/opsforge89/Relayix.git
 git add .
 git diff --cached --stat
 git commit -m "Prepare Relayix 0.7.1 Beta"
@@ -31,7 +31,7 @@ git tag v0.7.1
 git push origin v0.7.1
 ```
 
-`Release Docker image` runs the complete CI again, checks that the tag agrees with both Cargo and npm versions, and publishes `ghcr.io/devops-nechaev/relayix:0.7.1` and `:beta`. It uses the repository-scoped `GITHUB_TOKEN` with `packages:write`; no personal token is required for publication. It includes source/revision labels, build provenance and an SBOM. Tags containing `deploy/` also publish the single standalone Compose file and blank environment template as GitHub Release downloads. Tags are beta releases; the pipeline deliberately does not label them `latest`.
+`Release Docker image` runs the complete CI again, checks that the tag agrees with both Cargo and npm versions, and publishes `ghcr.io/opsforge89/relayix:0.7.1` and `:beta`. It uses the repository-scoped `GITHUB_TOKEN` with `packages:write`; no personal token is required for publication. It includes source/revision labels, build provenance and an SBOM. Release tags also publish the single standalone Compose file and blank environment template as GitHub Release downloads. Tags are beta releases; the pipeline deliberately does not label them `latest`.
 
 `Release Docker image` can also be dispatched manually with an existing numeric version, such as `0.7.1`. Both verification and publishing check out that exact version tag, and the image revision label records the tagged commit. This supports retrying first-publication tag events without moving a release tag.
 
