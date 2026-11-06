@@ -700,10 +700,10 @@ with sync_playwright() as p:
     expect(dialog.get_by_label('WEB-proxy address', exact=True)).to_be_visible()
     dialog.get_by_role('button', name='Cancel', exact=True).click()
     page.get_by_role('button', name='Dashboard', exact=True).click()
-    expect(page.locator('.delivery-channel .provider').first).to_be_visible()
+    expect(page.locator('.event-recipients .provider').first).to_be_visible()
     page.locator('nav').get_by_role('button', name='Deliveries', exact=True).click()
     page.get_by_role('button', name='Reset filters', exact=True).click()
-    expect(page.locator('.delivery-channel .provider').first).to_be_visible()
+    expect(page.locator('.event-recipients .provider').first).to_be_visible()
     page.screenshot(path=str(OUT / 'relayix-delivery-icons.png'), full_page=True)
     print('PASS: HTTP proxy form/save/test/masked edit, Telegram MTProto/WEB configuration fields, provider icons in dashboard and delivery history')
     # Render twenty representative channels without adding records to the database.
