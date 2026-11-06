@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Published numeric version, for example 0.7.2
+        description: Published numeric version, for example 0.7.3
         required: true
         type: string
 permissions:

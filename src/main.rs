@@ -55,7 +55,6 @@ fn valid_config(kind: &str, cfg: &Value, allow_http: bool) -> Result<()> {
         if url.scheme() != "https" && !(allow_http && url.scheme() == "http") { return Err(anyhow!("HTTPS required (or explicitly enable ALLOW_INSECURE_HTTP)")); }
         if url.host_str().is_none() || !url.username().is_empty() || url.password().is_some() { return Err(anyhow!("Invalid URL")); }
     }
-    message::validate(kind,cfg)?;
     proxy::validate(kind,cfg)?;
     if kind == "mattermost" { mattermost::validate(cfg)?; }
     if kind == "telegram" { telegram_thread(cfg)?; }
@@ -212,7 +211,7 @@ fn telegram_thread(cfg:&Value)->Result<Option<i64>> {
 }
 fn telegram_payload(cfg:&Value,text:&str)->Result<Value> {
  let mut payload=json!({"chat_id":cfg["chat_id"],"text":text});
- if cfg["text_format"]=="portable" {payload["parse_mode"]=json!("HTML");}
+ payload["parse_mode"]=json!("HTML");
  if let Some(id)=telegram_thread(cfg)? {payload["message_thread_id"]=json!(id);}
  Ok(payload)
 }

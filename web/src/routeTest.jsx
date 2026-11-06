@@ -25,7 +25,7 @@ export function RouteTestDialog({route,onClose,onTest,onPreview,onCopy,onViewDel
  return <Dialog title="Test webhook" description={route.name} onClose={onClose} busy={busy}><form className="route-test" onSubmit={send}>
   <p className="helptext">Preview checks routing without storing an event or sending a message. Send test webhook sends a real notification through this route. Route priority and recipient status decide delivery; tags are UI labels only.</p>
   <Field label="Test title" help="Optional. Leave empty to send the message without a heading."><input value={title} maxLength={256} onChange={e=>update(setTitle,e.target.value)}/></Field>
-  <Field label="Test message"><textarea value={message} rows={2} maxLength={10000} onChange={e=>update(setMessage,e.target.value)}/></Field>
+  <Field label="Test message" help="Send just a message, or add an optional title and tags. Formatting is automatic for Telegram and Mattermost."><textarea value={message} rows={2} maxLength={10000} onChange={e=>update(setMessage,e.target.value)}/></Field>
   <Field label="Priority (optional)" help={`Minimum for this route: ${route.min_priority}. Webhooks without priority use 3.`}><input type="number" value={priority} min={1} max={5} placeholder="3 (default)" onChange={e=>update(setPriority,e.target.value)}/></Field>
   <Field label="Tags (optional)" help="Optional message labels for filtering delivery history. They do not affect routing."><input value={tagText} placeholder="production, deploy" onChange={e=>update(setTagText,e.target.value)}/></Field>
   <details className="test-json"><summary>Test JSON</summary><pre aria-label="Test webhook JSON">{JSON.stringify(payload,null,2)}</pre></details>

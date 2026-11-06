@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.3 Beta — 2026-11-06
+
+- Automatically format Telegram and Mattermost messages, including optional headings, bold text and links. Remove Message content and Text formatting fields; legacy settings no longer suppress titles or disable formatting.
+- Keep titles and tags optional, preserve original event text and tag metadata, and retain full message viewing for untitled events.
+- Shorten the README to features, Compose setup, a webhook example and updates; move operational details and API documentation into the linked reference.
+
 ## 0.7.2 Beta — 2026-11-06
 
 - Deliver the message without an automatic heading when the original title is omitted, empty or whitespace-only. History labels never become delivery headings; title-only events are not duplicated.
