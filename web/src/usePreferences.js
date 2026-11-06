@@ -7,7 +7,13 @@ export const defaultPreferences={tables:{},theme:'light',refresh_interval_second
 const pendingKey=owner=>`relayix-pending-preferences:${owner}`;
 const pendingRead=owner=>{try{return JSON.parse(localStorage.getItem(pendingKey(owner))||'null')}catch{return null}};
 const pendingWrite=(owner,value)=>{try{if(value)localStorage.setItem(pendingKey(owner),JSON.stringify(value));else localStorage.removeItem(pendingKey(owner))}catch{}};
-const normalized=value=>({...defaultPreferences,...value,delivery_filters:{...defaultFilters,...value?.delivery_filters}});
+const normalizeTables=tables=>Object.fromEntries(Object.entries(tables||{}).map(([id,settings])=>{
+ if(!['deliveries','dashboard_deliveries'].includes(id))return [id,settings];
+ const hidden=[...new Set((settings.hidden_columns||[]).filter(key=>!['attempts','status'].includes(key)).map(key=>key==='channel'?'recipients':key))];
+ const removed=['attempts','status'].includes(settings.sort_by);
+ return [id,{...settings,hidden_columns:hidden.length>=6?[]:hidden,sort_by:removed?'created_at':settings.sort_by==='channel'?'recipients':settings.sort_by,sort_dir:removed?'desc':settings.sort_dir}];
+}));
+const normalized=value=>({...defaultPreferences,...value,tables:normalizeTables(value?.tables),delivery_filters:{...defaultFilters,...value?.delivery_filters}});
 
 export function usePreferences(save) {
  const [preferences,setPreferences]=useState(()=>normalized({theme:localStorage.getItem('relayix-theme')==='dark'?'dark':'light'}));

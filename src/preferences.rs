@@ -23,7 +23,16 @@ impl Default for Preferences {
     fn default()->Self { Self{tables:Default::default(),theme:"light".into(),refresh_interval_seconds:15,delivery_filters:DeliveryFilters::default(),route_tag_filter:String::new(),page_size:50,list_search:String::new(),dashboard_period:"30d".into(),api_token_tag_filter:String::new(),notification_timeout_seconds:8} }
 }
 impl Preferences {
-    pub fn from_value(value:Value)->Self { serde_json::from_value(value).unwrap_or_default() }
+    pub fn from_value(value:Value)->Self { let mut prefs:Self=serde_json::from_value(value).unwrap_or_default();prefs.normalize_tables();prefs }
+    fn normalize_tables(&mut self){
+        for id in ["deliveries","dashboard_deliveries"]{if let Some(settings)=self.tables.get_mut(id){
+            let legacy=settings.hidden_columns.iter().any(|key|matches!(key.as_str(),"channel"|"status"|"attempts"));
+            if settings.sort_by=="channel"{settings.sort_by="recipients".into();}
+            if matches!(settings.sort_by.as_str(),"status"|"attempts"){settings.sort_by="created_at".into();settings.sort_dir="desc".into();}
+            settings.hidden_columns=settings.hidden_columns.iter().filter_map(|key|match key.as_str(){"channel"=>Some("recipients".into()),"status"|"attempts"=>None,_=>Some(key.clone())}).collect();
+            if legacy&&settings.hidden_columns.len()==table::columns(id).unwrap().len()&&settings.hidden_columns.iter().all(|key|table::columns(id).unwrap().contains(&key.as_str())){settings.hidden_columns.clear();}
+        }}
+    }
     pub fn validate(&self)->Result<()> {
         if self.tables.len()>5{return Err(anyhow!("Unknown table settings"));}
         for (id,settings) in &self.tables {
@@ -49,7 +58,8 @@ impl Preferences {
 }
 pub async fn update(State(s):State<AppState>,h:HeaderMap,payload:std::result::Result<Json<Preferences>,axum::extract::rejection::JsonRejection>)->ApiResult<Preferences> {
     let user=auth::authenticated(&h,&s).await?;
-    let Json(input)=payload.map_err(|_|err(StatusCode::BAD_REQUEST,"Invalid preferences: check field names, types and nonnegative timeouts"))?;
+    let Json(mut input)=payload.map_err(|_|err(StatusCode::BAD_REQUEST,"Invalid preferences: check field names, types and nonnegative timeouts"))?;
+    input.normalize_tables();
     input.validate().map_err(|e|err(StatusCode::BAD_REQUEST,e))?;
     let value=serde_json::to_value(&input).unwrap();
     if let Some(id)=user.id {

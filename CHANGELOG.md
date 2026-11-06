@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.4 Beta — 2026-11-06
+
+- Show one event per row in Dashboard and Deliveries, with named service recipients and individual sent/failed/retrying/pending indicators. Keep attempts and errors in delivery details.
+- Filter channel and status against the same recipient, highlight matches and retain the other recipients for context. Sort and paginate complete events on the server; keep the existing per-delivery API available.
+- Render bold text and safe HTTP/HTTPS links in the full message viewer while preserving the original text for copying.
+- Dismiss every Columns menu with an outside click/tap or Escape; keep selections open while editing and migrate existing table preferences.
+
 ## 0.7.3 Beta — 2026-11-06
 
 - Automatically format Telegram and Mattermost messages, including optional headings, bold text and links. Remove Message content and Text formatting fields; legacy settings no longer suppress titles or disable formatting.
