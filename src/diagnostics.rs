@@ -38,7 +38,7 @@ async fn check(s:&AppState,c:&Channel)->Json<Value>{
  steps.push(step("configuration","passed","Required channel settings are valid."));
  if c.kind!="telegram"{steps.push(step("connectivity","warning","Use Test to send a notification for this integration."));return response(steps);}
  if matches!(proxy::mode(&c.config),"mtproto"|"webproxy"){
-  match telegram::transport(&c.config,"",Uuid::new_v4(),true).await {
+  match telegram::transport(&c.config,"",Uuid::new_v4(),true,false).await {
    Ok(data)=>if let Some(items)=data["steps"].as_array(){steps.extend(items.iter().cloned());},
    Err(e)=>steps.push(step("transport","failed",e)),
   }

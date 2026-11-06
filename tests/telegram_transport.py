@@ -71,3 +71,24 @@ for stage in ('connect','sign_in','get_entity'):
     assert steps[-1]['name']=={'connect':'transport','sign_in':'credentials','get_entity':'destination'}[stage]
     assert 'private-credential' not in str(steps)
 print('PASS: Telegram diagnostics report individual stages without sending and redact provider exceptions')
+
+# HTML is converted to MTProto entities with UTF-16 offsets, including emoji.
+seen.clear()
+asyncio.run(module.deliver({**data,'text':'✅ <b>Passed</b> &lt;b&gt;literal&lt;/b&gt;','parse_mode':'HTML'},FakeClient))
+request=seen[-2]
+assert request.message=='✅ Passed <b>literal</b>'
+assert len(request.entities)==1 and isinstance(request.entities[0],types.MessageEntityBold)
+assert request.entities[0].offset==2 and request.entities[0].length==6
+seen.clear()
+asyncio.run(module.deliver({**data,'text':'🚀 <b>OK</b>','parse_mode':'HTML'},FakeClient))
+assert seen[-2].entities[0].offset==3 and seen[-2].entities[0].length==2
+print('PASS: Telegram HTML becomes MTProto entities with correct emoji offsets and literal escaped tags')
+
+seen.clear()
+asyncio.run(module.deliver({**data,'text':'  <b>OK</b>\n\n','parse_mode':'HTML'},FakeClient))
+assert seen[-2].message=='  OK\n\n' and seen[-2].entities[0].offset==2
+seen.clear()
+asyncio.run(module.deliver({**data,'text':'Tasks:\n<a href="https://tickets.example.org/project/Task/TASK-123">TASK-123</a>','parse_mode':'HTML'},FakeClient))
+assert seen[-2].message=='Tasks:\nTASK-123'
+assert len(seen[-2].entities)==1 and isinstance(seen[-2].entities[0],types.MessageEntityTextUrl)
+assert seen[-2].entities[0].url=='https://tickets.example.org/project/Task/TASK-123'

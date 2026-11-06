@@ -43,7 +43,7 @@ For an external server, also set `POSTGRES_PORT`, `POSTGRES_USER` and `POSTGRES_
 
 ## Updating
 
-Current published image: `ghcr.io/opsforge89/relayix:0.7.1`.
+Current published image: `ghcr.io/opsforge89/relayix:0.7.2`.
 
 Change the app image tag in your `compose.yaml`, then run:
 
@@ -142,6 +142,23 @@ Mattermost supports both existing incoming webhooks and **Bot / REST API**. Ente
 13 integrations with local SVG icons: Telegram, Matrix, Mattermost, Rocket.Chat, Slack, Discord, Microsoft Teams (compatible webhook), Google Chat, ntfy, Pushover, Gotify, Email (SMTP) and Webhook.
 
 Configure a channel, use Test, and assign it to a route. Enter a route name and select recipients; a unique permanent webhook address is generated automatically. Existing `/h/{slug}` addresses and hashed `X-Relay-Key` values are preserved. Renaming a route never changes its address. Routes shows the full, selectable endpoint without ellipsis; key-copy feedback is displayed inside the key dialog. Changing recipients does not require changing the sending integration.
+
+### Message content and portable formatting
+
+Telegram and Mattermost channels have independent **Message content** and **Text formatting** settings:
+
+- **Title and message** includes a title only when the original webhook supplies a nonblank `title` (or `alertname`). Omitted, empty and whitespace-only titles never produce an automatic heading or separator. Title-only notifications contain the title once. Untitled rows in Recent deliveries, Deliveries and Incoming webhooks show **View message**, which opens the full body without expanding the table. History labels never become outgoing headings.
+- **Message only** ignores a supplied title and sends only the message body. The title remains available in event history.
+- **Original text** preserves existing provider behavior. Existing channels use this setting unless changed.
+- **Portable formatting (bold and links)** supports paired `**bold**` spans and `[label](https://url)` links in the common message. Relayix renders Telegram HTML with escaping and Mattermost Markdown with escaping; other text is literal. HTTP/HTTPS links are supported; unsafe schemes and credential-bearing links stay literal. This is a deliberately small common format, not a full Markdown parser. Backslash-escaped asterisks and unmatched markers remain literal. The supplied title is bold in this mode when included.
+
+For example, the same webhook works with a Telegram and Mattermost channel configured for portable bold:
+
+```json
+{"message":"**Tests passed** ✅\nBranch: master\nPassed: 125"}
+```
+
+No Telegram HTML or Mattermost-specific formatting is needed in GitLab CI. Original text stays stored in the event; formatting is applied separately for each destination. Telegram Bot API uses `parse_mode=HTML`; MTProto/WEB delivery uses equivalent Telegram entities with Unicode-correct offsets. Mattermost webhook and Bot API/DM delivery use the same renderer.
 
 ### Telegram topics
 

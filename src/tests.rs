@@ -31,6 +31,8 @@ fn telegram_topics_are_optional_positive_integers() {
     assert!(telegram_payload(&cfg,"test").unwrap().get("message_thread_id").is_none());
     cfg["message_thread_id"]=json!("42");
     assert_eq!(telegram_payload(&cfg,"test").unwrap()["message_thread_id"],42);
+    cfg["text_format"]=json!("portable");
+    assert_eq!(telegram_payload(&cfg,"<b>safe</b>").unwrap()["parse_mode"],"HTML");
     for invalid in [json!(0),json!(-3),json!("oops"),json!(2147483648_i64),json!(1.5)] {
         cfg["message_thread_id"]=invalid;
         assert!(valid_config("telegram",&cfg,false).is_err());

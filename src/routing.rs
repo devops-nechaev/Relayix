@@ -26,10 +26,8 @@ struct Event {
 
 fn parse_event(payload: &Value) -> Result<Event, &'static str> {
     if !payload.is_object() { return Err("Webhook payload must be a JSON object"); }
-    let title = payload.get("title").and_then(Value::as_str)
-        .or_else(|| payload.get("alertname").and_then(Value::as_str)).unwrap_or("Notification").to_owned();
-    let message = payload.get("message").or_else(|| payload.get("body"))
-        .and_then(Value::as_str).unwrap_or(&title).to_owned();
+    let title = crate::message::event_title(payload).to_owned();
+    let message = crate::message::event_message(payload).to_owned();
     let priority = match payload.get("priority") {
         None | Some(Value::Null) => 3,
         Some(value) => value.as_i64().ok_or("priority must be an integer")?.clamp(1, 5) as i32,

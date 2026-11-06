@@ -16,15 +16,15 @@ export function RouteTestDialog({route,onClose,onTest,onPreview,onCopy,onViewDel
  const [priority,setPriority]=useState('3'),[tagText,setTagText]=useState('');
  const [busy,setBusy]=useState(false),[result,setResult]=useState(null),[error,setError]=useState(''),[notice,setNotice]=useState('');
  const tags=tagText.split(',').map(tag=>tag.trim()).filter(Boolean);
- const valid=title.trim()&&(priority===''||(Number.isInteger(Number(priority))&&Number(priority)>=1&&Number(priority)<=5))&&tags.length<=32&&tags.every(tag=>tag.length<=64);
- const payload={title,message,...(priority!==''?{priority:Number(priority)}:{}),...(tags.length?{tags}:{})};
+ const valid=(title.trim()||message.trim())&&(priority===''||(Number.isInteger(Number(priority))&&Number(priority)>=1&&Number(priority)<=5))&&tags.length<=32&&tags.every(tag=>tag.length<=64);
+ const payload={...(title.trim()?{title}:{}),message,...(priority!==''?{priority:Number(priority)}:{}),...(tags.length?{tags}:{})};
  const update=(setter,value)=>{setter(value);setResult(null);setError('');setNotice('')};
  const send=async e=>{e.preventDefault();if(!valid)return;setBusy(true);setResult(null);setError('');setNotice('');try{setResult(await onTest(payload))}catch(e){setError(e.message);if(e.data?.routing)setResult(e.data)}finally{setBusy(false)}};
  const preview=async()=>{if(!valid)return;setBusy(true);setResult(null);setError('');setNotice('');try{setResult(await onPreview(payload))}catch(e){setError(e.message)}finally{setBusy(false)}};
  const copy=async()=>{setNotice('');try{await onCopy(JSON.stringify(payload,null,2));setNotice('Test JSON copied')}catch(e){setError(e.message)}};
  return <Dialog title="Test webhook" description={route.name} onClose={onClose} busy={busy}><form className="route-test" onSubmit={send}>
   <p className="helptext">Preview checks routing without storing an event or sending a message. Send test webhook sends a real notification through this route. Route priority and recipient status decide delivery; tags are UI labels only.</p>
-  <Field label="Test title"><input value={title} maxLength={256} required onChange={e=>update(setTitle,e.target.value)}/></Field>
+  <Field label="Test title" help="Optional. Leave empty to send the message without a heading."><input value={title} maxLength={256} onChange={e=>update(setTitle,e.target.value)}/></Field>
   <Field label="Test message"><textarea value={message} rows={2} maxLength={10000} onChange={e=>update(setMessage,e.target.value)}/></Field>
   <Field label="Priority (optional)" help={`Minimum for this route: ${route.min_priority}. Webhooks without priority use 3.`}><input type="number" value={priority} min={1} max={5} placeholder="3 (default)" onChange={e=>update(setPriority,e.target.value)}/></Field>
   <Field label="Tags (optional)" help="Optional message labels for filtering delivery history. They do not affect routing."><input value={tagText} placeholder="production, deploy" onChange={e=>update(setTagText,e.target.value)}/></Field>
