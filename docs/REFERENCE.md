@@ -18,11 +18,19 @@ Click **Diagnose** on a Telegram channel to run read-only checks of saved config
 
 Startup errors name invalid settings and distinguish database authentication, missing databases, TLS and connection problems without printing credentials. Inspect them with `docker compose logs app`.
 
+## Grouped delivery history
+
+Dashboard and Deliveries show one row per event. Each recipient chip displays the configured channel name, service icon/name and a status: sent, failed, retrying, queued or sending. Click a chip to inspect that delivery; Details summarizes all recipients and their attempt counts. Fallback recipients are labeled separately.
+
+Channel and status filters must match the same delivery. For example, Telegram + Failed selects events where that Telegram channel failed. All recipients remain visible; matching recipients are highlighted and others are muted. Search also matches errors and channel names on that same delivery. Date/period filters use event creation time. Counts and pagination refer to complete events, sorted before pagination; dashboard metrics still count individual deliveries.
+
+`GET /api/deliveries?group_events=true` returns event rows with a `recipients` array and `matches_filter` flags. Without this parameter the existing per-delivery API remains available. The grouped sort columns are `created_at`, `title`, `tags`, `route` and `recipients` (case-insensitive channel-name order). Original message bodies are stored and copied without alteration; the viewer renders the shared bold/link syntax as safe React elements, with raw HTML kept literal.
+
 ## Table controls
 
 Every table has a **Columns** menu to show or hide individual columns. Click a text, numeric or time header to sort; click it again to reverse the order. Time-based tables start with newest records first. Sorting of incoming events, deliveries and alert history runs on the server before pagination or result limits. User rows are sorted across the complete loaded user list. Action-only columns do not sort.
 
-Column visibility and sorting are saved per table to your account and follow you across sessions/devices. **Reset table** restores all columns and newest-first ordering. At least one column stays visible. **Attempts** contains the count; delivery details and retry actions stay in the separate **Details** column.
+Column visibility and sorting are saved per table to your account and follow you across sessions/devices. **Reset table** restores all columns and newest-first ordering. At least one column stays visible. Attempt counts, errors and retry actions are available in **Details**; there is no Attempts column.
 
 To configure fallback delivery, open **Routes → Edit → Fallback delivery → Fallback recipients (optional)**. Select recipients and save. They receive the original message after a primary recipient exhausts five attempts. A route card shows configured fallback recipients separately.
 

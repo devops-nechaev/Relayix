@@ -1,5 +1,8 @@
 import React,{useEffect,useState} from 'react';
 import {CheckCircle2,XCircle,LoaderCircle,X} from 'lucide-react';
+import {MessageBody} from './message.jsx';
+import {RecipientChip,deliveryState} from './deliveryStatus.jsx';
+import {ProviderIcon,channelMethod} from './integrations.jsx';
 import {DataTable,useTableSettings} from './tables.jsx';
 import {Banner} from './notifications.jsx';
 import {Dialog,PageHeading,Field,ErrorMessage} from './ui.jsx';
@@ -22,14 +25,19 @@ export function IncomingView({api,routes,refresh,onDeliveries,onViewMessage}) {
 }
 export function MessageDialog({value,onClose,onCopy}) {
  const [notice,setNotice]=useState(''),[error,setError]=useState('');
- return <Dialog title="Message" description={value.has_title?value.title:undefined} onClose={onClose}><pre className="message-view" aria-label="Full message">{value.message||''}</pre>{!value.message&&<p className="helptext">This event has no message body.</p>}<ErrorMessage error={error}/><Banner message={notice}/><button type="button" className="secondary" onClick={async()=>{try{await onCopy(value.message||'');setNotice('Message copied')}catch(e){setError(e.message)}}}>Copy message</button></Dialog>;
+ return <Dialog title="Message" description={value.has_title?value.title:undefined} onClose={onClose}><MessageBody text={value.message||''}/>{!value.message&&<p className="helptext">This event has no message body.</p>}<ErrorMessage error={error}/><Banner message={notice}/><button type="button" className="secondary" onClick={async()=>{try{await onCopy(value.message||'');setNotice('Message copied')}catch(e){setError(e.message)}}}>Copy message</button></Dialog>;
 }
-export function AttemptDialog({id,api,onClose,onRetry}) {
+export function AttemptDialog({id,recipient,channels=[],api,onClose,onRetry}) {
  const [data,setData]=useState(null),[error,setError]=useState(''),[busy,setBusy]=useState(false);
  const load=()=>api(`/api/deliveries/${id}/attempts`).then(setData).catch(e=>setError(e.message));
  useEffect(()=>{void load()},[id]);
  const retry=async()=>{setBusy(true);setError('');try{await onRetry(id);await load()}catch(e){setError(e.message)}finally{setBusy(false)}};
- return <Dialog title="Delivery attempts" description={id} onClose={onClose} busy={busy}><ErrorMessage error={error}/>{data?<><p>{data.attempts} total attempt(s) · {data.status}{data.is_fallback?' · Fallback':''}</p><p className="helptext">Retry starts a new cycle of up to five attempts and preserves previous attempt history. Older deliveries may have an attempt count without detailed records. The latest 100 records are shown.</p><div className="attempt-list">{data.items.map(a=><section key={a.number}><strong>Attempt {a.number} · {a.status}</strong><p>{new Date(a.started_at).toLocaleString()}{a.finished_at?` → ${new Date(a.finished_at).toLocaleString()}`:''}</p>{a.error&&<p className="delivery-error">{a.error}</p>}</section>)}</div>{data.can_retry&&<button className="secondary" disabled={busy} onClick={retry}>Retry delivery</button>}</>:<p>Loading attempts…</p>}</Dialog>;
+ const channel=channels.find(c=>c.id===recipient?.channel_id),cfg=channel?.config||{};
+ const destination=({telegram:cfg.chat_id,mattermost:cfg.target==='direct'?cfg.recipient:cfg.channel_id,matrix:cfg.room_id,smtp:cfg.to,ntfy:cfg.topic})[channel?.kind];
+ return <Dialog title="Delivery attempts" description={id} onClose={onClose} busy={busy}><ErrorMessage error={error}/>{recipient&&<div className="delivery-identity"><ProviderIcon kind={recipient.channel_kind}/><div><strong>{recipient.channel_name}</strong>{channel&&<p>{channelMethod(channel)}{destination&&destination!=='********'?` · ${destination}`:''}</p>}</div></div>}{data?<><p>{data.attempts} total attempt(s) · {data.status}{data.is_fallback?' · Fallback':''}</p><p className="helptext">Retry starts a new cycle of up to five attempts and preserves previous attempt history. Older deliveries may have an attempt count without detailed records. The latest 100 records are shown.</p><div className="attempt-list">{data.items.map(a=><section key={a.number}><strong>Attempt {a.number} · {a.status}</strong><p>{new Date(a.started_at).toLocaleString()}{a.finished_at?` → ${new Date(a.finished_at).toLocaleString()}`:''}</p>{a.error&&<p className="delivery-error">{a.error}</p>}</section>)}</div>{data.can_retry&&<button className="secondary" disabled={busy} onClick={retry}>Retry delivery</button>}</>:<p>Loading attempts…</p>}</Dialog>;
+}
+export function EventDeliveryDialog({value,onClose,onAttempts}) {
+ return <Dialog title="Delivery details" description={value.has_title?value.title:value.route_name} onClose={onClose}><p className="helptext">{new Date(value.created_at).toLocaleString()} · {value.recipients.length} recipients</p><div className="event-delivery-details">{value.recipients.map(recipient=><section key={recipient.id}><RecipientChip recipient={recipient} onSelect={onAttempts}/><div><strong>{deliveryState(recipient).label}</strong><p>{recipient.attempts} total attempt(s){recipient.is_fallback?' · Fallback':''}</p>{recipient.sent_at&&<p>Sent: {new Date(recipient.sent_at).toLocaleString()}</p>}{recipient.error&&<p className="delivery-error">{recipient.error}</p>}<button type="button" className="link" onClick={()=>onAttempts(recipient)}>View attempts and retry</button></div></section>)}</div></Dialog>;
 }
 const stageLabels={configuration:'Configuration',transport:'Connection',credentials:'Bot authentication',destination:'Chat access'};
 export function InlineDiagnostics({state,onDismiss}) {
