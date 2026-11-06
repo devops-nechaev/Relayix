@@ -44,7 +44,7 @@ def verify(api, anonymous):
             received=json.load(urlopen('http://mock:8000/received'))
             matching=[]
             for item in received:
-                if item['path'] not in ('/message-content-contract','/api/v4/posts'):continue
+                if item.get('path') not in ('/message-content-contract','/api/v4/posts'):continue
                 body=json.loads(item['body'])
                 if body.get('text',body.get('message'))==expected:matching.append(item)
             assert len(matching)==3,(index,expected,matching)
@@ -55,7 +55,7 @@ def verify(api, anonymous):
             if not has_title:assert event['title']=='' and all(r['title']=='' for r in rows)
             assert all('payload' not in r for r in rows) and '_source' not in event
         saved=next(c for c in api.ok('/api/channels') if c['id']==channels[1])
-        assert saved['config']['message_mode']=='title_and_message' and saved['config']['text_format']=='portable'
+        assert saved['config']['message_mode']=='message_only' and saved['config']['text_format']=='portable'
         api.ok('/api/channels/'+channels[1],saved,'PUT')
         for key,value in [('message_mode','invalid'),('text_format',True)]:
             assert api.request('/api/channels/'+channels[1],{**saved,'config':{**saved['config'],key:value}},'PUT')[0]==400
