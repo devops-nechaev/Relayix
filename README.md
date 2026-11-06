@@ -1,10 +1,10 @@
-<h1>
+<p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/brand/relayix-header-dark.svg">
     <source media="(prefers-color-scheme: light)" srcset="docs/brand/relayix-header-light.svg">
     <img src="docs/brand/relayix-header-light.svg" width="480" alt="Relayix Beta — Route once. Notify anywhere.">
   </picture>
-</h1>
+</p>
 
 ## Docker Compose quick start
 

@@ -20,7 +20,7 @@ In repository settings enable Actions and Packages. Protect `main` and require t
 
 ## Continuous integration
 
-`Verify` runs on pull requests, pushes to `main` and manual dispatch. It builds the Docker image with `cargo test --locked --release`, compiles the React app using `npm ci`, and runs `scripts/check.sh --skip-app-build`. Tests use an isolated PostgreSQL, local SMTP/HTTP mocks and Chromium. Test resources are cleaned up even on failure. Screenshots and failure logs are uploaded for seven days. Fork PRs run without registry publishing credentials.
+`Verify` runs on pull requests, pushes to `main` and manual dispatch. Updates limited to `README.md`, `docs/` and the CI definition itself keep the required `verify` check but skip image builds and all application tests, running only the lightweight private-file scan. Changes to application files, release-tag verification and manual verification retain the full build/test flow. It builds the Docker image with `cargo test --locked --release`, compiles the React app using `npm ci`, and runs `scripts/check.sh --skip-app-build`. Tests use an isolated PostgreSQL, local SMTP/HTTP mocks and Chromium. Test resources are cleaned up even on failure. Screenshots and failure logs are uploaded for seven days. Fork PRs run without registry publishing credentials.
 
 ## Continuous delivery
 
