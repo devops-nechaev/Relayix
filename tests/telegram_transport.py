@@ -59,8 +59,8 @@ class DiagnosticClient(FakeClient):
         raise AssertionError('Diagnostics must not send messages')
 seen.clear()
 steps=asyncio.run(module.diagnose(data,DiagnosticClient))
-assert [s['name'] for s in steps]==['transport','credentials','destination','permissions']
-assert [s['status'] for s in steps]==['passed','passed','passed','warning']
+assert [s['name'] for s in steps]==['transport','credentials','destination']
+assert [s['status'] for s in steps]==['passed','passed','passed']
 assert seen[-1]=='disconnected'
 for stage in ('connect','sign_in','get_entity'):
     async def failure(self,*args,**kwargs):

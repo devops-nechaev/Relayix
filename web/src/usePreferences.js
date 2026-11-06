@@ -3,7 +3,7 @@ import {useState,useRef,useCallback,useEffect} from 'react';
 export const monitoringPeriods=[['5m','5 minutes'],['15m','15 minutes'],['30m','30 minutes'],['1h','1 hour'],['24h','1 day'],['7d','7 days'],['30d','30 days']];
 export const periodLabel=value=>monitoringPeriods.find(([key])=>key===value)?.[1]||'30 days';
 export const defaultFilters={status:'',channel_id:'',route_id:'',event_id:'',from:'',to:'',search:'',tag:'',period:''};
-export const defaultPreferences={theme:'light',refresh_interval_seconds:15,delivery_filters:defaultFilters,route_tag_filter:'',page_size:50,list_search:'',dashboard_period:'30d',api_token_tag_filter:'',notification_timeout_seconds:8};
+export const defaultPreferences={tables:{},theme:'light',refresh_interval_seconds:15,delivery_filters:defaultFilters,route_tag_filter:'',page_size:50,list_search:'',dashboard_period:'30d',api_token_tag_filter:'',notification_timeout_seconds:8};
 const pendingKey=owner=>`relayix-pending-preferences:${owner}`;
 const pendingRead=owner=>{try{return JSON.parse(localStorage.getItem(pendingKey(owner))||'null')}catch{return null}};
 const pendingWrite=(owner,value)=>{try{if(value)localStorage.setItem(pendingKey(owner),JSON.stringify(value));else localStorage.removeItem(pendingKey(owner))}catch{}};

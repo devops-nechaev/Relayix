@@ -9,6 +9,7 @@ mod database;
 mod routing;
 mod operations;
 mod diagnostics;
+mod table;
 #[cfg(test)]
 mod tests;
 use std::{env, sync::Arc, time::Duration};
@@ -171,7 +172,7 @@ struct Delivery { id:Uuid,event_id:Uuid,route_id:Uuid,channel_id:Uuid,channel_na
 #[derive(Deserialize,Default)]
 struct DeliveryQuery {
  status:Option<String>,channel_id:Option<Uuid>,route_id:Option<Uuid>,event_id:Option<Uuid>,from:Option<DateTime<Utc>>,to:Option<DateTime<Utc>>,
- search:Option<String>,tag:Option<String>,period:Option<String>,page:Option<i64>,page_size:Option<i64>,
+ search:Option<String>,tag:Option<String>,period:Option<String>,page:Option<i64>,page_size:Option<i64>,#[serde(flatten)] sort:table::Sort,
 }
 async fn deliveries(State(s):State<AppState>,h:HeaderMap,Query(mut filter):Query<DeliveryQuery>)->ApiResult<Value>{
  auth::authenticated(&h,&s).await?;
@@ -183,12 +184,13 @@ async fn deliveries(State(s):State<AppState>,h:HeaderMap,Query(mut filter):Query
  }
  if filter.search.as_ref().map(|v|v.len()>250).unwrap_or(false) {return Err(err(StatusCode::BAD_REQUEST,"Search is too long"));}
  if filter.tag.as_ref().map(|v|v.len()>64).unwrap_or(false){return Err(err(StatusCode::BAD_REQUEST,"Tag is too long"));}
+ let order=table::order("deliveries",&filter.sort)?;
  let page=filter.page.unwrap_or(1).clamp(1,1000000);let page_size=filter.page_size.unwrap_or(50).clamp(1,100);
  let search=filter.search.as_ref().filter(|v|!v.is_empty()).map(|v|format!("%{v}%"));
  let condition=" FROM deliveries d JOIN events e ON e.id=d.event_id JOIN channels c ON c.id=d.channel_id JOIN routes r ON r.id=e.route_id WHERE ($1::text IS NULL OR d.status=$1 OR ($1='retrying' AND d.status='queued' AND d.error IS NOT NULL)) AND ($2::uuid IS NULL OR d.channel_id=$2) AND ($3::uuid IS NULL OR e.route_id=$3) AND ($4::timestamptz IS NULL OR d.created_at>=$4) AND ($5::timestamptz IS NULL OR d.created_at<=$5) AND ($6::text IS NULL OR e.title ILIKE $6 OR c.name ILIKE $6 OR r.name ILIKE $6 OR COALESCE(d.error,'') ILIKE $6) AND ($7::text IS NULL OR e.tags @> jsonb_build_array($7::text) OR NULLIF(BTRIM(r.required_tag),'')=$7::text) AND ($8::uuid IS NULL OR e.id=$8)";
  let mut count_sql=sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT COUNT(*)");count_sql.push(condition);
  let (total,):(i64,)=count_sql.build_query_as::<(i64,)>().bind(&filter.status).bind(filter.channel_id).bind(filter.route_id).bind(filter.from).bind(filter.to).bind(&search).bind(filter.tag.as_deref().filter(|t|!t.is_empty())).bind(filter.event_id).fetch_one(&s.db).await.map_err(db_error)?;
- let mut rows_sql=sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT d.id,d.event_id,e.route_id,d.channel_id,c.name AS channel_name,c.kind AS channel_kind,r.name AS route_name,e.title,e.tags,NULLIF(BTRIM(r.required_tag),'') AS route_tag,d.status,d.attempts,d.is_fallback,d.error,d.created_at,d.sent_at");rows_sql.push(condition).push(" ORDER BY d.created_at DESC,d.id DESC LIMIT $9 OFFSET $10");
+ let mut rows_sql=sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT d.id,d.event_id,e.route_id,d.channel_id,c.name AS channel_name,c.kind AS channel_kind,r.name AS route_name,e.title,e.tags,NULLIF(BTRIM(r.required_tag),'') AS route_tag,d.status,d.attempts,d.is_fallback,d.error,d.created_at,d.sent_at");rows_sql.push(condition).push(order).push(" LIMIT $9 OFFSET $10");
  let items=rows_sql.build_query_as::<Delivery>().bind(&filter.status).bind(filter.channel_id).bind(filter.route_id).bind(filter.from).bind(filter.to).bind(&search).bind(filter.tag.as_deref().filter(|t|!t.is_empty())).bind(filter.event_id).bind(page_size).bind((page-1)*page_size).fetch_all(&s.db).await.map_err(db_error)?;
  Ok(Json(json!({"items":items,"total":total,"page":page,"page_size":page_size})))
 }

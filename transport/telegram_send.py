@@ -91,7 +91,6 @@ async def diagnose(data, factory=TelegramClient):
         stage = 'destination'
         await client.get_entity(destination(cfg))
         steps.append({'name': stage, 'status': 'passed', 'detail': 'Telegram resolved the destination.'})
-        steps.append({'name': 'permissions', 'status': 'warning', 'detail': 'Use Test to verify message and topic permissions; diagnostics do not send messages.'})
     except Exception as exc:
         steps.append({'name': stage, 'status': 'failed', 'detail': {
             'credentials': 'Telegram rejected credentials.', 'destination': 'Chat not accessible; check bot membership and Chat ID.',

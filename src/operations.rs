@@ -2,17 +2,18 @@
 use crate::*;
 
 #[derive(Deserialize)]
-pub struct EventQuery {route_id:Option<Uuid>,reason:Option<String>,search:Option<String>,page:Option<i64>,page_size:Option<i64>}
+pub struct EventQuery {route_id:Option<Uuid>,reason:Option<String>,search:Option<String>,page:Option<i64>,page_size:Option<i64>,#[serde(flatten)] sort:table::Sort}
 pub async fn events(State(s):State<AppState>,h:HeaderMap,Query(q):Query<EventQuery>)->ApiResult<Value>{
  auth::authenticated(&h,&s).await?;
  if q.search.as_ref().is_some_and(|v|v.len()>250)||q.reason.as_ref().is_some_and(|v|v.len()>64){return Err(err(StatusCode::BAD_REQUEST,"History filter is too long"));}
+ let order=table::order("incoming",&q.sort)?;
  let page=q.page.unwrap_or(1).clamp(1,1000000);let size=q.page_size.unwrap_or(25).clamp(1,100);
  let search=q.search.filter(|v|!v.is_empty()).map(|v|format!("%{v}%"));
  let condition=" FROM events e JOIN routes r ON r.id=e.route_id WHERE ($1::uuid IS NULL OR e.route_id=$1) AND ($2::text IS NULL OR COALESCE(e.routing->>'reason','legacy')=$2) AND ($3::text IS NULL OR e.title ILIKE $3 OR e.message ILIKE $3 OR r.name ILIKE $3)";
  let mut count=sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT COUNT(*)");count.push(condition);
  let (total,):(i64,)=count.build_query_as().bind(q.route_id).bind(q.reason.as_deref().filter(|v|!v.is_empty())).bind(&search).fetch_one(&s.db).await.map_err(db_error)?;
  let mut rows=sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT jsonb_build_object('id',e.id,'route_id',e.route_id,'route_name',r.name,'title',e.title,'message',e.message,'priority',e.priority,'tags',e.tags,'routing',e.routing,'created_at',e.created_at,'deliveries',(SELECT COUNT(*) FROM deliveries d WHERE d.event_id=e.id),'sent',(SELECT COUNT(*) FROM deliveries d WHERE d.event_id=e.id AND d.status='sent'))");
- rows.push(condition).push(" ORDER BY e.created_at DESC,e.id DESC LIMIT $4 OFFSET $5");
+ rows.push(condition).push(order).push(" LIMIT $4 OFFSET $5");
  let items:Vec<(Value,)>=rows.build_query_as().bind(q.route_id).bind(q.reason.as_deref().filter(|v|!v.is_empty())).bind(search).bind(size).bind((page-1)*size).fetch_all(&s.db).await.map_err(db_error)?;
  Ok(Json(json!({"items":items.into_iter().map(|r|r.0).collect::<Vec<_>>(),"total":total,"page":page,"page_size":size})))
 }

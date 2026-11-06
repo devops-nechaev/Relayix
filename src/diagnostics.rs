@@ -61,9 +61,11 @@ async fn check(s:&AppState,c:&Channel)->Json<Value>{
   Ok(member)=>{
    let status=member["status"].as_str().unwrap_or("");
    let denied=matches!(status,"left"|"kicked") || (status=="restricted" && (member["is_member"]!=true||member["can_send_messages"]!=true)) || (chat["type"]=="channel" && status!="creator" && (status!="administrator"||member["can_post_messages"]!=true));
-   steps.push(step("permissions",if denied{"failed"}else{"warning"},if denied{"The bot cannot send to this chat; check membership and posting permissions."}else{"Membership checked. Use Test to verify sending and topic-specific restrictions."}));
+   if denied {
+    if let Some(destination)=steps.last_mut(){*destination=step("destination","failed","The bot cannot send to this chat; check membership and posting permissions.");}
+   }
   }
-  Err(_)=>steps.push(step("permissions","warning","Could not inspect chat membership. Use Test to verify sending permissions.")),
+  Err(_)=>{},
  }
  response(steps)
 }
