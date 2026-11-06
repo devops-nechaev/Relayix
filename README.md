@@ -71,7 +71,9 @@ Keep your `.env` and database volume. Migrations run automatically.
 
 ## Preview
 
-![Relayix dashboard](docs/screenshots/relayix-dashboard-dark.png)
+![Relayix dashboard — dark theme](docs/screenshots/relayix-dashboard-dark.png)
+
+![Relayix channels — light theme](docs/screenshots/relayix-channels-light.png)
 
 ## Documentation
 
