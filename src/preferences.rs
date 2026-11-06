@@ -11,16 +11,26 @@ impl Default for DeliveryFilters {
 }
 #[derive(Clone,Debug,Serialize,Deserialize,PartialEq)]
 #[serde(default,deny_unknown_fields)]
+pub struct TableSettings {pub hidden_columns:Vec<String>,pub sort_by:String,pub sort_dir:String}
+impl Default for TableSettings {fn default()->Self{Self{hidden_columns:vec![],sort_by:"created_at".into(),sort_dir:"desc".into()}}}
+#[derive(Clone,Debug,Serialize,Deserialize,PartialEq)]
+#[serde(default,deny_unknown_fields)]
 pub struct Preferences {
-    pub theme:String,pub refresh_interval_seconds:u32,pub delivery_filters:DeliveryFilters,
+    pub tables:std::collections::BTreeMap<String,TableSettings>,pub theme:String,pub refresh_interval_seconds:u32,pub delivery_filters:DeliveryFilters,
     pub route_tag_filter:String,pub page_size:u32,pub list_search:String,pub dashboard_period:String,pub api_token_tag_filter:String,pub notification_timeout_seconds:u32,
 }
 impl Default for Preferences {
-    fn default()->Self { Self{theme:"light".into(),refresh_interval_seconds:15,delivery_filters:DeliveryFilters::default(),route_tag_filter:String::new(),page_size:50,list_search:String::new(),dashboard_period:"30d".into(),api_token_tag_filter:String::new(),notification_timeout_seconds:8} }
+    fn default()->Self { Self{tables:Default::default(),theme:"light".into(),refresh_interval_seconds:15,delivery_filters:DeliveryFilters::default(),route_tag_filter:String::new(),page_size:50,list_search:String::new(),dashboard_period:"30d".into(),api_token_tag_filter:String::new(),notification_timeout_seconds:8} }
 }
 impl Preferences {
     pub fn from_value(value:Value)->Self { serde_json::from_value(value).unwrap_or_default() }
     pub fn validate(&self)->Result<()> {
+        if self.tables.len()>5{return Err(anyhow!("Unknown table settings"));}
+        for (id,settings) in &self.tables {
+            let columns=table::columns(id).ok_or_else(||anyhow!("Unknown table settings"))?;
+            if !matches!(settings.sort_dir.as_str(),"asc"|"desc")||!columns.contains(&settings.sort_by.as_str())||matches!(settings.sort_by.as_str(),"actions"|"details"){return Err(anyhow!("Invalid table sort"));}
+            if settings.hidden_columns.len()>=columns.len()||settings.hidden_columns.iter().any(|key|!columns.contains(&key.as_str()))||settings.hidden_columns.iter().collect::<std::collections::HashSet<_>>().len()!=settings.hidden_columns.len(){return Err(anyhow!("Invalid hidden columns; keep at least one visible column"));}
+        }
         if !matches!(self.theme.as_str(),"light"|"dark") {return Err(anyhow!("Theme must be light or dark"));}
         if self.refresh_interval_seconds!=0 && !(5..=3600).contains(&self.refresh_interval_seconds) {return Err(anyhow!("Refresh interval must be 5–3600 seconds, or 0 to disable automatic refresh"));}
         if ![10,25,50,100].contains(&self.page_size) {return Err(anyhow!("Page size must be 10, 25, 50 or 100"));}

@@ -12,7 +12,7 @@ project='relayix-test-upgrade-'+secrets.token_hex(5)
 network=project+'-network'
 db=project+'-db'
 app=project+'-app'
-image=os.environ.get('RELAYIX_TEST_IMAGE','relayix:0.7.0')
+image=os.environ.get('RELAYIX_TEST_IMAGE','relayix:0.7.1')
 
 def run(args, **kwargs):
     result=subprocess.run(args,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,**kwargs)
@@ -58,7 +58,7 @@ from pathlib import Path
 token=next(line.split('=',1)[1] for line in Path('/proc/self/environ').read_bytes().decode().split(chr(0)) if line.startswith('ADMIN_TOKEN='))
 def api(path):
  return json.load(urllib.request.urlopen(urllib.request.Request('http://127.0.0.1:8080'+path,headers={'Authorization':'Bearer '+token})))
-assert api('/healthz')['version']=='0.7.0'
+assert api('/healthz')['version']=='0.7.1'
 event=api('/api/events?route_id=RID')['items'][0]
 assert event['id']=='EID' and event['title']=='Preserved legacy event' and event['routing'] is None
 attempts=api('/api/deliveries/DID/attempts')
@@ -69,7 +69,7 @@ assert route['required_tag']=='Deploy' and route['fallback_channel_ids']==[]
         run(['docker','exec',app,'python3','-c',probe])
         cycle=run(['docker','exec',db,'psql','-U','relayix','-d','relayix','-Atc',"SELECT cycle_attempts FROM deliveries WHERE id='"+did+"'"])
         assert cycle.strip()=='5'
-        print('PASS: real 0.6.4 → 0.7.0 upgrade preserves users, routes, events, failed attempts and UI labels',flush=True)
+        print('PASS: real 0.6.4 → 0.7.1 upgrade preserves users, routes, events, failed attempts and UI labels',flush=True)
     finally:
         subprocess.run(['docker','rm','-f','-v',app,db],capture_output=True)
         subprocess.run(['docker','network','rm',network],capture_output=True)

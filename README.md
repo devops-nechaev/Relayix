@@ -1,4 +1,4 @@
-# Relayix 0.7.0 Beta
+# Relayix 0.7.1 Beta
 
 A self-hosted notification hub: Rust / Axum / React / PostgreSQL. English interface, light and dark themes.
 
@@ -54,15 +54,23 @@ Schema migrations run automatically. Keep your `.env`, Compose project name and 
 
 In **Routes → Test webhook**, **Preview routing** shows which recipients would receive a payload without storing an event or sending messages. **Send test webhook** creates real deliveries. Optional priority defaults to 3; tags remain UI metadata only.
 
-Click the attempt count in **Deliveries** to inspect errors and start/finish times. **Retry now** starts another cycle of up to five attempts while preserving total attempts and history. A recovered worker lease is marked interrupted because the previous send outcome may be unknown. Older attempts made before this release have counts but no detailed records.
+Click **Details** in its own column in **Deliveries** to inspect errors and start/finish times. **Retry now** starts another cycle of up to five attempts while preserving total attempts and history. A recovered worker lease is marked interrupted because the previous send outcome may be unknown. Older attempts made before this release have counts but no detailed records.
 
 Select **Fallback recipients** when editing a route. After any primary delivery exhausts five attempts, Relayix queues the original message to each enabled fallback recipient. Fallback targets are captured when the event is accepted; each recipient is queued once per event, even if several primary recipients fail or a primary is manually retried. Fallback deliveries have their own five attempts and cannot trigger another fallback. Primary and fallback recipients must be different. Disabling a channel prevents pending sends and fallback dispatch to it. A delivery already in progress can still complete.
 
 For safe webhook retries, send `Idempotency-Key: YOUR_UNIQUE_EVENT_KEY`. The key is scoped to the route and retained with the event. Repeating a key with the same JSON payload returns the original event ID, original queue count and `duplicate: true`, without new deliveries. Reusing a key with a different payload returns `409 Conflict`. Concurrent retries are serialized. JSON object key order does not matter; changes to values or optional fields count as a different payload. Keys contain 1–256 characters and are stored as hashes. Deleting the event or its route removes its deduplication record. Delivery retries remain at least once; an external receiver may receive a duplicate after a crash or an ambiguous network failure.
 
-In **Channels → Telegram → Diagnose**, run read-only checks of saved configuration, transport, bot authentication and chat access. You can also use **Check Telegram settings** in the channel form before saving. Permission checks that cannot establish sendability are shown as warnings; use **Test** separately to verify sending, including topic restrictions. MTProto/WEB still require `TELEGRAM_API_ID` and `TELEGRAM_API_HASH` on the server. HTTP Bot API works without those application credentials.
+Click **Diagnose** on a Telegram channel to run read-only checks of saved configuration, transport, bot authentication and chat access immediately, without opening a dialog. You can also use **Check Telegram settings** in the channel form before saving. Results appear inline immediately with green/red stage icons. Chat-access failures include known membership or posting restrictions. Diagnostics do not send messages; use **Test** for actual delivery, including topic restrictions. MTProto/WEB still require `TELEGRAM_API_ID` and `TELEGRAM_API_HASH` on the server. HTTP Bot API works without those application credentials.
 
 Startup errors name invalid settings and distinguish database authentication, missing databases, TLS and connection problems without printing credentials. Inspect them with `docker compose logs app`.
+
+## Table controls
+
+Every table has a **Columns** menu to show or hide individual columns. Click a text, numeric or time header to sort; click it again to reverse the order. Time-based tables start with newest records first. Sorting of incoming events, deliveries and alert history runs on the server before pagination or result limits. User rows are sorted across the complete loaded user list. Action-only columns do not sort.
+
+Column visibility and sorting are saved per table to your account and follow you across sessions/devices. **Reset table** restores all columns and newest-first ordering. At least one column stays visible. **Attempts** contains the count; delivery details and retry actions stay in the separate **Details** column.
+
+To configure fallback delivery, open **Routes → Edit → Fallback delivery → Fallback recipients (optional)**. Select recipients and save. They receive the original message after a primary recipient exhausts five attempts. A route card shows configured fallback recipients separately.
 
 ## Screenshots
 

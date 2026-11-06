@@ -60,7 +60,7 @@ def main():
     api = Client(TOKEN)
     for _ in range(90):
         try:
-            if api.ok('/healthz')['version'] == '0.7.0':
+            if api.ok('/healthz')['version'] == '0.7.1':
                 break
         except (URLError, AssertionError):
             time.sleep(1)
@@ -322,6 +322,8 @@ def main():
     verify(api, Client())
     from operations import verify as verify_operations
     verify_operations(api, Client())
+    from tables import verify as verify_tables
+    verify_tables(api, Client())
     print('All smoke tests passed.', flush=True)
 
 

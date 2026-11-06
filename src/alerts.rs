@@ -68,9 +68,12 @@ pub async fn test(State(s):State<AppState>,h:HeaderMap,Path(id):Path<Uuid>)->Api
 
 #[derive(Serialize,FromRow)]
 pub struct AlertDelivery {id:Uuid,policy_name:Option<String>,channel_name:String,status:String,attempts:i32,error:Option<String>,title:String,created_at:DateTime<Utc>,sent_at:Option<DateTime<Utc>>}
-pub async fn history(State(s):State<AppState>,h:HeaderMap)->ApiResult<Vec<AlertDelivery>> {
+pub async fn history(State(s):State<AppState>,h:HeaderMap,Query(sort):Query<table::Sort>)->ApiResult<Vec<AlertDelivery>> {
     auth::require_admin(&h,&s).await?;
-    Ok(Json(sqlx::query_as::<_,AlertDelivery>("SELECT a.id,p.name AS policy_name,c.name AS channel_name,a.status,a.attempts,a.error,a.title,a.created_at,a.sent_at FROM alert_deliveries a LEFT JOIN alert_policies p ON p.id=a.policy_id JOIN channels c ON c.id=a.channel_id ORDER BY a.created_at DESC LIMIT 100").fetch_all(&s.db).await.map_err(db_error)?))
+    let order=table::order("alert_history",&sort)?;
+    let mut sql=sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT a.id,p.name AS policy_name,c.name AS channel_name,a.status,a.attempts,a.error,a.title,a.created_at,a.sent_at FROM alert_deliveries a LEFT JOIN alert_policies p ON p.id=a.policy_id JOIN channels c ON c.id=a.channel_id");
+    sql.push(order).push(" LIMIT 100");
+    Ok(Json(sql.build_query_as::<AlertDelivery>().fetch_all(&s.db).await.map_err(db_error)?))
 }
 pub async fn retry(State(s):State<AppState>,h:HeaderMap,Path(id):Path<Uuid>)->ApiResult<Value> {
     auth::require_admin(&h,&s).await?;

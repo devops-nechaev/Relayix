@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.1 Beta — 2026-11-06
+
+- Keep attempt counts in Attempts and move the Details action into its own column.
+- Add account-persisted column visibility and click-to-sort headers to every table. Event/delivery/alert sorting runs on the server before result limits and pagination; default to newest first.
+- Run Telegram diagnostics immediately from the channel or edit form and display compact inline stages with green/red icons; remove the separate dialog and redundant permissions warning. Known permission failures are reported as chat-access failures.
+- Highlight fallback recipient settings in the route editor and explicitly describe the five-attempt trigger.
+
 ## 0.7.0 Beta — 2026-11-05
 
 - Add searchable, paginated incoming webhook history, including accepted events with no queued deliveries and their original routing decisions.
