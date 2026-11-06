@@ -61,6 +61,7 @@ function App(){
  const [modal,setModal]=useState(null),[draft,setDraft]=useState(null),[savedKey,setSavedKey]=useState(null),[usageRoute,setUsageRoute]=useState(null),[testRoute,setTestRoute]=useState(null);
  const [diagnostics,setDiagnostics]=useState({}),[draftDiagnostics,setDraftDiagnostics]=useState(null),[attemptId,setAttemptId]=useState(null),[messageView,setMessageView]=useState(null),[eventDetails,setEventDetails]=useState(null);
  const generation=useRef(0),menuRef=useRef(null),draftDiagnosticRequest=useRef(0);
+ useEffect(()=>{draftDiagnosticRequest.current++;setDraftDiagnostics(null)},[draft?.kind,draft?.config]);
  useEffect(()=>{document.documentElement.dataset.theme=theme;localStorage.setItem('relayix-theme',theme)},[theme]);
  useEffect(()=>{let active=true;request('/api/auth/me',token).then(u=>{if(active)acceptUser(u)}).catch(()=>{if(active){sessionStorage.removeItem('relayix-api-token');setToken('')}}).finally(()=>{if(active)setChecking(false)});return()=>{active=false}},[]);
  useEffect(()=>{const close=e=>{if(menuRef.current&&!menuRef.current.contains(e.target))setProfileMenu(false)};const escape=e=>{if(e.key==='Escape')setProfileMenu(false)};document.addEventListener('pointerdown',close);document.addEventListener('keydown',escape);return()=>{document.removeEventListener('pointerdown',close);document.removeEventListener('keydown',escape)}},[]);
