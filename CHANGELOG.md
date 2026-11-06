@@ -2,6 +2,9 @@
 
 ## 0.7.1 Beta — 2026-11-06
 
+- Update GitHub/GHCR links and deployment defaults to opsforge89 after the account rename.
+- Replace the plain README title and technical introduction with the existing Relayix brand header, preserving its proportions in light and dark themes.
+
 - Keep attempt counts in Attempts and move the Details action into its own column.
 - Add account-persisted column visibility and click-to-sort headers to every table. Event/delivery/alert sorting runs on the server before result limits and pagination; default to newest first.
 - Run Telegram diagnostics immediately from the channel or edit form and display compact inline stages with green/red icons; remove the separate dialog and redundant permissions warning. Known permission failures are reported as chat-access failures.

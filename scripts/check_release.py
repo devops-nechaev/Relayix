@@ -12,7 +12,7 @@ expected={
  'Dockerfile':r'org\.opencontainers\.image\.version="'+re.escape(version)+r'"',
  'web/src/main.jsx':r"const VERSION='"+re.escape(version)+r"';",
  'CHANGELOG.md':r'(?m)^## '+re.escape(version)+r' Beta — \d{4}-\d{2}-\d{2}$',
- 'README.md':r'^# Relayix '+re.escape(version)+r' Beta\n',
+ 'README.md':r'Current published image: `ghcr\.io/[^/`]+/relayix:'+re.escape(version)+r'`\.',
 }
 for name,pattern in expected.items():
  if not re.search(pattern,(root/name).read_text()):raise SystemExit('Release version mismatch: '+name)

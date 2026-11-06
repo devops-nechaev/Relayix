@@ -42,7 +42,7 @@ with tempfile.TemporaryDirectory(prefix=project) as folder:
             if subprocess.run(['docker','exec',db,'pg_isready','-U','relayix'],capture_output=True).returncode==0:
                 break
             time.sleep(.5)
-        start('ghcr.io/devops-nechaev/relayix:0.6.4',appenv)
+        start('ghcr.io/opsforge89/relayix:0.6.4',appenv)
         # Known legacy records, with a failed delivery so no external send occurs.
         cid,rid,eid,did=[str(uuid.uuid4()) for _ in range(4)]
         sql=f"""INSERT INTO channels(id,name,kind,enabled) VALUES('{cid}','Legacy disabled','webhook',FALSE);
