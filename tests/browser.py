@@ -169,7 +169,7 @@ with sync_playwright() as p:
         expect(delivery_table.get_by_role('columnheader',name='Tags',exact=True)).to_have_count(0)
         menu.locator('summary').click()
         for _ in range(40):
-            settings=page.request.get(BASE+'/api/auth/me').json()['preferences'].get('tables',{}).get('deliveries',{})
+            settings=page.request.get(BASE+'/api/auth/me',headers={'X-Relay-Client':'web'}).json()['preferences'].get('tables',{}).get('deliveries',{})
             if settings.get('hidden_columns')==['tags'] and settings.get('sort_by')=='title':break
             page.wait_for_timeout(100)
         else:raise AssertionError('Table settings were not saved to the account')
