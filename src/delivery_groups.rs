@@ -21,7 +21,7 @@ pub async fn list(db:&sqlx::PgPool,filter:&DeliveryQuery,condition:&str,search:&
  for mut row in rows{row.has_title=!message::event_title(&row.payload).is_empty();groups.entry(row.event_id).or_default().push(row);}
  let items=ids.into_iter().filter_map(|id|{
   let rows=groups.remove(&id)?;let first=rows.first()?;
-  let mut event=json!({"id":id,"event_id":id,"route_id":first.route_id,"route_name":first.route_name,"route_tag":first.route_tag,"created_at":first.event_created_at,"title":first.title,"has_title":first.has_title,"message":first.message,"tags":first.tags});
+  let mut event=json!({"id":id,"event_id":id,"route_id":first.route_id,"route_name":first.route_name,"route_icon":first.route_icon,"route_tag":first.route_tag,"created_at":first.event_created_at,"title":first.title,"has_title":first.has_title,"message":first.message,"tags":first.tags});
   event["recipients"]=Value::Array(rows.into_iter().map(|row|json!({"id":row.id,"channel_id":row.channel_id,"channel_name":row.channel_name,"channel_kind":row.channel_kind,"status":row.status,"attempts":row.attempts,"is_fallback":row.is_fallback,"error":row.error,"created_at":row.created_at,"sent_at":row.sent_at,"matches_filter":matched.contains(&row.id)})).collect());
   Some(event)
  }).collect::<Vec<_>>();

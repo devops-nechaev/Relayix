@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.0 Beta — 2026-11-07
+
+- Add user-created message templates with optional route assignment, fake-data examples, read-only preview, literal variables, failure-only links and immutable per-event rendering history.
+- Add configurable route icons and a compact Channels/Routes dashboard. Preserve the current delivery table without a Result column and scope error styling to recipient chips.
+- Add searchable primary/fallback recipient selection, service filters, selected-only review and bulk selection for large channel lists.
+- Replace expanding incoming-event cells with an Overview/Technical side panel.
+- Provide individual read-only diagnostics for every integration, with provider-specific checks and explicit unverified stages.
+
 ## 0.7.4 Beta — 2026-11-06
 
 - Show one event per row in Dashboard and Deliveries, with named service recipients and individual sent/failed/retrying/pending indicators. Keep attempts and errors in delivery details.

@@ -12,6 +12,7 @@ mod operations;
 mod diagnostics;
 mod table;
 mod delivery_groups;
+mod templates;
 #[cfg(test)]
 mod tests;
 use std::{env, sync::Arc, time::Duration};
@@ -108,11 +109,11 @@ async fn delete_channel(State(s):State<AppState>, h:HeaderMap,Path(id):Path<Uuid
 }
 
 #[derive(Serialize,FromRow)]
-struct Route { id:Uuid, name:String,slug:String,enabled:bool,min_priority:i32, required_tag:Option<String>,created_at:DateTime<Utc> }
+struct Route { id:Uuid, name:String,slug:String,enabled:bool,min_priority:i32, required_tag:Option<String>,icon:String,template_id:Option<Uuid>,created_at:DateTime<Utc> }
 #[derive(Serialize)]
 struct RouteResponse { #[serde(flatten)] route:Route, channels:Vec<Uuid>, fallback_channel_ids:Vec<Uuid> }
 #[derive(Deserialize)]
-struct RouteInput { name:String,slug:Option<String>,enabled:Option<bool>, min_priority:Option<i32>,required_tag:Option<String>, channel_ids:Vec<Uuid>, #[serde(default)] fallback_channel_ids:Vec<Uuid> }
+struct RouteInput { #[serde(default)] icon:Option<String>,#[serde(default)] template_id:Option<Uuid>,name:String,slug:Option<String>,enabled:Option<bool>, min_priority:Option<i32>,required_tag:Option<String>, channel_ids:Vec<Uuid>, #[serde(default)] fallback_channel_ids:Vec<Uuid> }
 fn slug_valid(s:&str)->bool { !s.is_empty() && s.len()<=80 && s.bytes().all(|b|b.is_ascii_lowercase() || b.is_ascii_digit() || b==b'-') }
 fn generated_slug(name:&str,id:Uuid)->String {
  let mut prefix=String::new();
@@ -120,6 +121,7 @@ fn generated_slug(name:&str,id:Uuid)->String {
  let prefix=prefix.trim_matches('-');format!("{}-{}",if prefix.is_empty(){"route"}else{prefix},id.simple())
 }
 fn valid_route(input:&RouteInput)->Result<()> {
+ if input.icon.as_deref().is_some_and(|icon|!templates::ICONS.contains(&icon)){return Err(anyhow!("Unknown route icon"));}
  if input.channel_ids.len()>100 || input.fallback_channel_ids.len()>100 {return Err(anyhow!("Use at most 100 primary and 100 fallback recipients"));}
  if input.fallback_channel_ids.iter().any(|id|input.channel_ids.contains(id)) {return Err(anyhow!("Primary and fallback recipients must be different"));}
  if input.channel_ids.iter().collect::<std::collections::HashSet<_>>().len()!=input.channel_ids.len() || input.fallback_channel_ids.iter().collect::<std::collections::HashSet<_>>().len()!=input.fallback_channel_ids.len() {return Err(anyhow!("Duplicate recipients are not allowed"));}
@@ -129,7 +131,7 @@ fn valid_route(input:&RouteInput)->Result<()> {
 }
 async fn routes(State(s):State<AppState>,h:HeaderMap)->ApiResult<Vec<RouteResponse>>{
  auth::authenticated(&h,&s).await?;
- let rows=sqlx::query_as::<_,Route>("SELECT id,name,slug,enabled,min_priority,required_tag,created_at FROM routes ORDER BY created_at DESC").fetch_all(&s.db).await.map_err(db_error)?;
+ let rows=sqlx::query_as::<_,Route>("SELECT id,name,slug,enabled,min_priority,required_tag,icon,message_template_id AS template_id,created_at FROM routes ORDER BY created_at DESC").fetch_all(&s.db).await.map_err(db_error)?;
  let mut out=Vec::new();
  for route in rows {let ids:Vec<(Uuid,)> = sqlx::query_as("SELECT channel_id FROM route_channels WHERE route_id=$1").bind(route.id).fetch_all(&s.db).await.map_err(db_error)?;let fallback:Vec<(Uuid,)>=sqlx::query_as("SELECT channel_id FROM route_fallback_channels WHERE route_id=$1 ORDER BY channel_id").bind(route.id).fetch_all(&s.db).await.map_err(db_error)?;out.push(RouteResponse{route,channels:ids.into_iter().map(|x|x.0).collect(),fallback_channel_ids:fallback.into_iter().map(|x|x.0).collect()});}
  Ok(Json(out))
@@ -139,8 +141,8 @@ async fn create_route(State(s):State<AppState>,h:HeaderMap,Json(input):Json<Rout
  let id=Uuid::new_v4();let slug=input.slug.as_deref().filter(|s|!s.is_empty()).map(str::to_owned).unwrap_or_else(||generated_slug(&input.name,id));
  if !slug_valid(&slug){return Err(err(StatusCode::BAD_REQUEST,"Invalid route endpoint"));}
  let token=key(); let mut tx=s.db.begin().await.map_err(db_error)?;
- let inserted=sqlx::query("INSERT INTO routes(id,name,slug,token_hash,enabled,min_priority,required_tag) VALUES($1,$2,$3,$4,$5,$6,$7)")
- .bind(id).bind(input.name.trim()).bind(&slug).bind(hash(&token)).bind(input.enabled.unwrap_or(true)).bind(input.min_priority.unwrap_or(1).clamp(1,5)).bind(input.required_tag.map(|t|t.trim().to_owned()).filter(|t|!t.is_empty())).execute(&mut *tx).await;
+ let inserted=sqlx::query("INSERT INTO routes(id,name,slug,token_hash,enabled,min_priority,required_tag,icon,message_template_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)")
+ .bind(id).bind(input.name.trim()).bind(&slug).bind(hash(&token)).bind(input.enabled.unwrap_or(true)).bind(input.min_priority.unwrap_or(1).clamp(1,5)).bind(input.required_tag.map(|t|t.trim().to_owned()).filter(|t|!t.is_empty())).bind(input.icon.as_deref().unwrap_or("git-branch")).bind(input.template_id).execute(&mut *tx).await;
  if inserted.is_err(){return Err(err(StatusCode::CONFLICT,"Route slug already exists or invalid input"));}
  for cid in input.channel_ids {sqlx::query("INSERT INTO route_channels(route_id,channel_id) VALUES($1,$2)").bind(id).bind(cid).execute(&mut *tx).await.map_err(db_error)?;}
  for cid in input.fallback_channel_ids {sqlx::query("INSERT INTO route_fallback_channels(route_id,channel_id) VALUES($1,$2)").bind(id).bind(cid).execute(&mut *tx).await.map_err(db_error)?;}
@@ -153,8 +155,8 @@ async fn update_route(State(s):State<AppState>,h:HeaderMap,Path(id):Path<Uuid>,J
  let old=old.ok_or_else(||err(StatusCode::NOT_FOUND,"Route not found"))?.0;
  if input.slug.as_ref().map(|slug|slug!=&old).unwrap_or(false){return Err(err(StatusCode::BAD_REQUEST,"Existing webhook endpoints cannot be changed"));}
  let mut tx=s.db.begin().await.map_err(db_error)?;
- sqlx::query("UPDATE routes SET name=$2,enabled=$3,min_priority=$4,required_tag=$5 WHERE id=$1")
- .bind(id).bind(input.name.trim()).bind(input.enabled.unwrap_or(true)).bind(input.min_priority.unwrap_or(1).clamp(1,5)).bind(input.required_tag.map(|t|t.trim().to_owned()).filter(|t|!t.is_empty())).execute(&mut *tx).await.map_err(db_error)?;
+ sqlx::query("UPDATE routes SET name=$2,enabled=$3,min_priority=$4,required_tag=$5,icon=COALESCE($6,icon),message_template_id=$7 WHERE id=$1")
+ .bind(id).bind(input.name.trim()).bind(input.enabled.unwrap_or(true)).bind(input.min_priority.unwrap_or(1).clamp(1,5)).bind(input.required_tag.map(|t|t.trim().to_owned()).filter(|t|!t.is_empty())).bind(input.icon.as_deref()).bind(input.template_id).execute(&mut *tx).await.map_err(db_error)?;
  sqlx::query("DELETE FROM route_channels WHERE route_id=$1").bind(id).execute(&mut *tx).await.map_err(db_error)?;
  for cid in input.channel_ids {sqlx::query("INSERT INTO route_channels(route_id,channel_id) VALUES($1,$2)").bind(id).bind(cid).execute(&mut *tx).await.map_err(db_error)?;}
  sqlx::query("DELETE FROM route_fallback_channels WHERE route_id=$1").bind(id).execute(&mut *tx).await.map_err(db_error)?;
@@ -170,8 +172,8 @@ async fn rotate_route(State(s):State<AppState>,h:HeaderMap,Path(id):Path<Uuid>)-
 }
 
 #[derive(Serialize,FromRow)]
-struct Delivery { id:Uuid,event_id:Uuid,route_id:Uuid,channel_id:Uuid,channel_name:String,channel_kind:String,route_name:String,title:String,tags:Value,route_tag:Option<String>,status:String,attempts:i32,is_fallback:bool,error:Option<String>,created_at:DateTime<Utc>,sent_at:Option<DateTime<Utc>>,message:String,has_title:bool,#[serde(skip)] payload:Value,#[serde(skip)] event_created_at:DateTime<Utc> }
-const DELIVERY_SELECT:&str="SELECT d.id,d.event_id,e.route_id,d.channel_id,c.name AS channel_name,c.kind AS channel_kind,r.name AS route_name,e.title,e.tags,NULLIF(BTRIM(r.required_tag),'') AS route_tag,d.status,d.attempts,d.is_fallback,d.error,d.created_at,d.sent_at,e.message,FALSE AS has_title,e.payload,e.created_at AS event_created_at";
+struct Delivery { id:Uuid,event_id:Uuid,route_id:Uuid,channel_id:Uuid,channel_name:String,channel_kind:String,route_name:String,route_icon:String,title:String,tags:Value,route_tag:Option<String>,status:String,attempts:i32,is_fallback:bool,error:Option<String>,created_at:DateTime<Utc>,sent_at:Option<DateTime<Utc>>,message:String,has_title:bool,#[serde(skip)] payload:Value,#[serde(skip)] event_created_at:DateTime<Utc> }
+const DELIVERY_SELECT:&str="SELECT d.id,d.event_id,e.route_id,d.channel_id,c.name AS channel_name,c.kind AS channel_kind,r.name AS route_name,r.icon AS route_icon,e.title,e.tags,NULLIF(BTRIM(r.required_tag),'') AS route_tag,d.status,d.attempts,d.is_fallback,d.error,d.created_at,d.sent_at,e.message,FALSE AS has_title,COALESCE(e.rendered_payload,e.payload) AS payload,e.created_at AS event_created_at";
 #[derive(Deserialize,Default)]
 struct DeliveryQuery {
  status:Option<String>,channel_id:Option<Uuid>,route_id:Option<Uuid>,event_id:Option<Uuid>,from:Option<DateTime<Utc>>,to:Option<DateTime<Utc>>,
@@ -334,6 +336,10 @@ async fn main()->Result<()> {
  .route("/routes/{id}/test",post(routing::test_route))
  .route("/routes/{id}/preview",post(routing::preview_route))
  .route("/events",get(operations::events))
+ .route("/events/{id}",get(operations::event_details))
+ .route("/templates",get(templates::list).post(templates::create))
+ .route("/templates/preview",post(templates::preview))
+ .route("/templates/{id}",axum::routing::put(templates::update).delete(templates::delete))
  .route("/deliveries/{id}/attempts",get(operations::attempts))
  .route("/deliveries",get(deliveries))
  .route("/deliveries/{id}/retry",post(retry))

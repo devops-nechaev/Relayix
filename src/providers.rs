@@ -59,6 +59,15 @@ pub async fn send_smtp(cfg: &Value, title: &str, body: &str) -> Result<()> {
         .from(smtp_sender(cfg)?)
         .to(cfg["to"].as_str().unwrap().parse()?)
         .subject(title).header(ContentType::TEXT_PLAIN).body(body.to_owned())?;
+    let (transport,_tunnel)=smtp_transport(cfg).await?;
+    // Bound the entire conversation, including connection establishment and TLS negotiation.
+    tokio::time::timeout(Duration::from_secs(30), transport.send(message)).await
+        .map_err(|_| anyhow!("SMTP delivery timed out"))?
+        .map_err(|_| anyhow!("SMTP delivery failed; check server, TLS mode, credentials and recipient"))?;
+    Ok(())
+}
+
+async fn smtp_transport(cfg:&Value)->Result<(AsyncSmtpTransport<Tokio1Executor>,Option<crate::proxy::SmtpTunnel>)>{
     let host = cfg["host"].as_str().unwrap();
     let tunnel=if crate::proxy::mode(cfg)=="http" {Some(crate::proxy::smtp_tunnel(cfg,host,smtp_port(cfg)?).await?)}else{None};
     let builder = if tunnel.is_some() {
@@ -75,11 +84,12 @@ pub async fn send_smtp(cfg: &Value, title: &str, body: &str) -> Result<()> {
     if let Some(username) = cfg["username"].as_str().filter(|s| !s.is_empty()) {
         builder = builder.credentials(Credentials::new(username.to_owned(), cfg["password"].as_str().unwrap().to_owned()));
     }
-    // Bound the entire conversation, including connection establishment and TLS negotiation.
-    tokio::time::timeout(Duration::from_secs(30), builder.build().send(message)).await
-        .map_err(|_| anyhow!("SMTP delivery timed out"))?
-        .map_err(|_| anyhow!("SMTP delivery failed; check server, TLS mode, credentials and recipient"))?;
-    Ok(())
+    Ok((builder.build(),tunnel))
+}
+pub async fn diagnose_smtp(cfg:&Value)->Result<()> {
+    let (transport,_tunnel)=smtp_transport(cfg).await?;
+    let connected=tokio::time::timeout(Duration::from_secs(25),transport.test_connection()).await.map_err(|_|anyhow!("SMTP diagnostic timed out"))?.map_err(|_|anyhow!("SMTP connection, TLS or authentication failed; check host, port, TLS mode, proxy and credentials"))?;
+    if !connected{return Err(anyhow!("SMTP server rejected the connection check"));}Ok(())
 }
 
 fn matrix_url(cfg: &Value, parts: &[&str]) -> Result<url::Url> {

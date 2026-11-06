@@ -5,6 +5,7 @@ import {BrandMark,BrandName} from './brand.jsx';
 import {Banner} from './notifications.jsx';
 import {DataTable} from './tables.jsx';
 import {RecipientChip,DeliveryLegend} from './deliveryStatus.jsx';
+import {RouteIcon} from './routeIcons.jsx';
 import {defaultFilters,monitoringPeriods} from './usePreferences.js';
 
 export const passwordChecks=(password,username='')=>[
@@ -20,10 +21,11 @@ export function PasswordStrength({password,username}) {
 }
 export function Field({label,children,help}) {return <label className="form-field"><span>{label}</span>{React.cloneElement(children,{"aria-label":label})}{help&&<small className="helptext">{help}</small>}</label>}
 export function PageHeading({title,description,children}) {return <div className="page-header"><div><h1>{title}</h1><p>{description}</p></div>{children}</div>}
-export function Dialog({title,description,onClose,busy,children}) {
+const dialogStack=[];
+export function Dialog({title,description,onClose,busy,children,wide=false,drawer=false}) {
  const ref=useRef(null),closeRef=useRef(onClose),busyRef=useRef(busy);closeRef.current=onClose;busyRef.current=busy;
- useEffect(()=>{const previous=document.activeElement;const dialog=ref.current;const initial=dialog?.querySelector('input:not([type=hidden]):not([type=checkbox]):not(:disabled),select:not(:disabled),textarea:not(:disabled)')||dialog?.querySelector('button:not(:disabled)');initial?.focus({preventScroll:true});const listener=e=>{if(e.key==='Escape'&&!busyRef.current)closeRef.current();if(e.key==='Tab'){const all=[...dialog.querySelectorAll('button,input,select,textarea,[tabindex="0"]')].filter(e=>!e.disabled&&e.offsetParent!==null);if(!all.length)return;const first=all[0],last=all.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}}};document.addEventListener('keydown',listener);return()=>{document.removeEventListener('keydown',listener);previous?.focus({preventScroll:true})}},[]);
- return <div className="overlay" onMouseDown={e=>{if(e.target===e.currentTarget&&!busy)onClose()}}><div ref={ref} className="dialog" role="dialog" aria-modal="true" aria-label={title}><div className="dialog-header"><div><h2>{title}</h2>{description&&<p>{description}</p>}</div><button className="ghost" aria-label="Close dialog" onClick={onClose} disabled={busy}><X size={20}/></button></div>{children}</div></div>;
+ useEffect(()=>{const previous=document.activeElement;const dialog=ref.current;dialogStack.push(dialog);const initial=dialog?.querySelector('input:not([type=hidden]):not([type=checkbox]):not(:disabled),select:not(:disabled),textarea:not(:disabled)')||dialog?.querySelector('button:not(:disabled)');initial?.focus({preventScroll:true});const listener=e=>{if(dialogStack.at(-1)!==dialog)return;if(e.key==='Escape'&&!busyRef.current)closeRef.current();if(e.key==='Tab'){const all=[...dialog.querySelectorAll('button,input,select,textarea,[tabindex="0"]')].filter(e=>!e.disabled&&e.offsetParent!==null);if(!all.length)return;const first=all[0],last=all.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}}};document.addEventListener('keydown',listener);return()=>{document.removeEventListener('keydown',listener);const index=dialogStack.indexOf(dialog);if(index>=0)dialogStack.splice(index,1);if(previous?.isConnected)previous.focus({preventScroll:true})}},[]);
+ return <div className={`overlay${drawer?' drawer-overlay':''}`} style={{zIndex:20+dialogStack.length}} onMouseDown={e=>{if(e.target===e.currentTarget&&!busy)onClose()}}><div ref={ref} className={`dialog${wide?' dialog-wide':''}${drawer?' dialog-drawer':''}`} role="dialog" aria-modal="true" aria-label={title}><div className="dialog-header"><div><h2>{title}</h2>{description&&<p>{description}</p>}</div><button className="ghost" aria-label="Close dialog" onClick={onClose} disabled={busy}><X size={20}/></button></div>{children}</div></div>;
 }
 export function ErrorMessage({error}) {return <Banner message={error} variant="error"/>}
 export function SaveActions({busy,onClose,disabled=false,label='Save'}) {return <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={busy}>Cancel</button><button className="primary" disabled={busy||disabled}>{busy?'Saving…':label}</button></div>}
@@ -83,7 +85,7 @@ export function DeliveryTable({rows,busy,onRetry,onTag,onAttempts,onDetails,onVi
   {key:'created_at',label:'Time',type:'date',value:d=>d.created_at,render:d=>new Date(d.created_at).toLocaleString()},
   {key:'title',label:'Notification',value:d=>d.title,className:'delivery-title',render:d=><button className="link" onClick={()=>onViewMessage(d)}>{d.has_title?d.title:'View message'}</button>},
   {key:'tags',label:'Tags',value:d=>[...(Array.isArray(d.tags)?d.tags:[]),d.route_tag].filter(Boolean).join(', '),render:d=><div className="tag-list">{[...new Set([...(Array.isArray(d.tags)?d.tags:[]),d.route_tag].filter(Boolean))].map(tag=><button type="button" className="chip tag-chip" key={tag} onClick={()=>onTag?.(tag)} aria-label={`Filter tag ${tag}`}>{tag}</button>)}{!d.tags?.length&&!d.route_tag&&<span className="muted">—</span>}</div>},
-  {key:'route',label:'Route',value:d=>d.route_name},
+  {key:'route',label:'Route',value:d=>d.route_name,render:d=><span className="table-route"><RouteIcon name={d.route_icon} size={16}/>{d.route_name}</span>},
   {key:'recipients',label:'Recipients',value:event=>event.recipients.map(r=>r.channel_name).join(', '),render:event=><div className="event-recipients">{event.recipients.map(recipient=><RecipientChip key={recipient.id} recipient={recipient} onSelect={onAttempts} filterActive={filterActive}/>)}</div>},
   {key:'details',label:'Details',render:event=><button type="button" className="small-btn" onClick={()=>onDetails(event)}>Details</button>},
  ];

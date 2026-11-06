@@ -14,7 +14,7 @@ Select **Fallback recipients** when editing a route. After any primary delivery 
 
 For safe webhook retries, send `Idempotency-Key: YOUR_UNIQUE_EVENT_KEY`. The key is scoped to the route and retained with the event. Repeating a key with the same JSON payload returns the original event ID, original queue count and `duplicate: true`, without new deliveries. Reusing a key with a different payload returns `409 Conflict`. Concurrent retries are serialized. JSON object key order does not matter; changes to values or optional fields count as a different payload. Keys contain 1–256 characters and are stored as hashes. Deleting the event or its route removes its deduplication record. Delivery retries remain at least once; an external receiver may receive a duplicate after a crash or an ambiguous network failure.
 
-Click **Diagnose** on a Telegram channel to run read-only checks of saved configuration, transport, bot authentication and chat access immediately, without opening a dialog. You can also use **Check Telegram settings** in the channel form before saving. Results appear inline immediately with green/red stage icons. Chat-access failures include known membership or posting restrictions. Diagnostics do not send messages; use **Test** for actual delivery, including topic restrictions. MTProto/WEB still require `TELEGRAM_API_ID` and `TELEGRAM_API_HASH` on the server. HTTP Bot API works without those application credentials.
+Click **Diagnose** on any channel to check only that integration, without opening a separate dialog or sending a notification. The channel form also checks draft settings. Results appear inline: green confirms a stage, red reports failure, and gray means a check does not apply or needs an actual test send. Checks respect the configured proxy without direct fallback. Telegram checks bot/chat access; Mattermost and Matrix use read-only account/destination APIs; Discord reads webhook metadata; Pushover validates application/user keys; ntfy and Gotify check service health; SMTP connects/authenticates and issues NOOP. Webhook-only services check connectivity/TLS and leave credential/posting checks explicitly unverified. Use **Test** for actual delivery and topic/write permissions. MTProto/WEB require Telegram application credentials on the server; HTTP Bot API does not.
 
 Startup errors name invalid settings and distinguish database authentication, missing databases, TLS and connection problems without printing credentials. Inspect them with `docker compose logs app`.
 
@@ -175,9 +175,56 @@ Use an independent working destination for warnings about another destination's 
 
 ## Deliveries
 
-Filters run on the server before pagination: status, channel, route, tag, date range and title/channel/route/error text. Results include the notification title, attempts, expandable error details and manual retry for failed/retrying deliveries. Pages use the account page-size setting (50 by default), with a filtered total. API `page_size` accepts 1–100.
+Filters run on the server before pagination: status, channel, route, tag, date range and title/channel/route/error text. One row represents an event, with named service recipients and individual status icons. Attempts, errors and manual retry are available by clicking a recipient or Details. Incoming-event Details opens a side panel with an Overview and a separate Technical tab, preserving table row height. Pages use the account page-size setting (50 by default), with a filtered total. API `page_size` accepts 1–100.
 
-Templates are disabled in 0.4: no menu, route selection, rendering or template API. Historical template rows and old migration files are retained so existing database data is not destroyed.
+## Message templates
+
+Templates are optional. Create your own under **Templates**, then select one in a route's **Message template** field. No templates are installed automatically. **Examples** open editable drafts with fictional data; only **Save template** stores them. **Preview** renders sample JSON without storing an event or sending a notification.
+
+Use `{{field}}` or `{{build.branch}}` for JSON values. Strings, numbers, booleans and scalar arrays are supported; zero counts are preserved. Variables are literal text, except `{{message}}`, which preserves incoming bold/link formatting. Shared `**bold**` and `[label](https://example.org)` links are adapted for Telegram and Mattermost. Templates run no expressions, scripts or network requests. `title` and `tags` may be absent; priority defaults to 3. An empty title template produces no heading.
+
+A layout can use `{{test_type}} {{suite}}` as its title and this body:
+
+```text
+Branch: {{branch}}
+
+Status: {{status}}
+Failed: {{failed}}
+Passed: {{passed}}
+Skipped: {{skipped}}
+```
+
+All values come from your webhook JSON. Test types and suite names are unrestricted: for example, `UnitTests` and `ExampleSuite`, or `IntTests` and `Example.Worker`.
+
+For a runner-log link, set **Link label** to `Runner log`, **Link URL template** to `{{log_url}}` and enable **Show on failure only**. Pass `log_url` from GitLab's `$CI_JOB_URL` **inside the test job**. If notification runs in a separate job, carry the original test job URL through an artifact/dotenv variable; `$CI_JOB_URL` in that separate job points to its own log.
+
+```bash
+# Inside the test job, after collecting its actual test counters/status:
+# Use your test runner's real values for TEST_TYPE, TEST_SUITE, TEST_STATUS,
+# TEST_FAILED, TEST_PASSED and TEST_SKIPPED.
+python3 - <<'PYCODE'
+import json, os
+payload = {
+    'test_type': os.environ['TEST_TYPE'],
+    'suite': os.environ['TEST_SUITE'],
+    'branch': os.environ['CI_COMMIT_REF_NAME'],
+    'status': os.environ['TEST_STATUS'],
+    'failed': int(os.environ['TEST_FAILED']),
+    'passed': int(os.environ['TEST_PASSED']),
+    'skipped': int(os.environ['TEST_SKIPPED']),
+    'log_url': os.environ['CI_JOB_URL'],
+}
+with open('notification.json', 'w') as output:
+    json.dump(payload, output)
+PYCODE
+curl --fail-with-body "$RELAYIX_ENDPOINT" \
+  -H 'Content-Type: application/json' -H "X-Relay-Key: $RELAYIX_ROUTE_KEY" \
+  --data-binary @notification.json
+```
+
+Failure means `failed > 0`, `success: false`, or a failure/canceled status in `status` or `job_status` (including `❌`). Missing or unsafe URLs are hidden. Optional links accept only HTTP/HTTPS URLs without embedded credentials.
+
+If required variables are missing, the original message/title is used. If neither the template nor the original payload can supply useful content, the webhook returns `400` with an explanation. Rendering and the template version are saved per event. Editing or deleting a template affects new events; retries and fallback retain the accepted event's text. Original payload and template snapshot are available in **Incoming webhooks → Details → Technical**. Historical disabled template records remain separate and are never activated automatically.
 
 ## API
 
