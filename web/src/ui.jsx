@@ -107,11 +107,11 @@ export function RouteKeyDialog({value,onClose,onCopy}) {
 export function RouteUsageDialog({route,onClose,onCopy}) {
  const [notice,setNotice]=useState(''),[error,setError]=useState('');
  const endpoint=`${location.origin}/h/${route.slug}`;
- const payload=JSON.stringify({title:'Hello from Relayix',message:'Your notification is ready.'});
+ const payload=JSON.stringify({message:'Your notification is ready.'});
  const quote=value=>"'"+value.replaceAll("'", "'\"'\"'")+"'";
  const example=[`curl --request POST ${quote(endpoint)}`,"  --header 'Content-Type: application/json'","  --header 'X-Relay-Key: YOUR_ROUTE_KEY'",`  --data ${quote(payload)}`].join(' \\\n');
  const copy=async()=>{setError('');try{await onCopy(example);setNotice('Example copied to clipboard')}catch(e){setError(e.message)}};
- return <Dialog title="Route integration guide" description={route.name} onClose={onClose}><div className="route-guide"><p>Send a JSON notification to this endpoint with your route key in the <code>X-Relay-Key</code> header.</p><code className="endpoint">{endpoint}</code><pre>{example}</pre><button className="secondary" onClick={copy}>Copy example</button><p className="helptext">Replace YOUR_ROUTE_KEY with the key saved when this route was created. If you no longer have it, use Rotate key in Routes and update your integrations.</p>{route.required_tag&&<p className="helptext">Route tag (UI only; not required in webhook payloads): <strong>{route.required_tag}</strong>.</p>}<Banner message={notice}/><ErrorMessage error={error}/></div></Dialog>;
+ return <Dialog title="Route integration guide" description={route.name} onClose={onClose}><div className="route-guide"><p>Send a JSON notification to this endpoint with your route key in the <code>X-Relay-Key</code> header.</p><p className="helptext">Only message is needed. Add title for a heading and tags as an optional array of labels, for example: <code>{'{"message":"Tests passed","title":"Deployment","tags":["deploy"]}'}</code>. Relayix formats Telegram and Mattermost messages automatically.</p><code className="endpoint">{endpoint}</code><pre>{example}</pre><button className="secondary" onClick={copy}>Copy example</button><p className="helptext">Replace YOUR_ROUTE_KEY with the key saved when this route was created. If you no longer have it, use Rotate key in Routes and update your integrations.</p>{route.required_tag&&<p className="helptext">Route tag (UI only; not required in webhook payloads): <strong>{route.required_tag}</strong>.</p>}<Banner message={notice}/><ErrorMessage error={error}/></div></Dialog>;
 }
 
 function NotificationPreferences({value,onSave,status}) {

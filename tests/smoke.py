@@ -60,7 +60,7 @@ def main():
     api = Client(TOKEN)
     for _ in range(90):
         try:
-            if api.ok('/healthz')['version'] == '0.7.2':
+            if api.ok('/healthz')['version'] == '0.7.3':
                 break
         except (URLError, AssertionError):
             time.sleep(1)
@@ -277,7 +277,7 @@ def main():
     posts = [r for r in mm if r['path'] == '/api/v4/posts' and r['authorization'] == 'Bearer ' + credentials['mattermost_token']]
     assert any(json.loads(r['body'])['channel_id'] == 'mmchannel' for r in posts)
     assert any(json.loads(r['body'])['channel_id'] == 'd' * 26 for r in posts)
-    assert any(json.loads(r['body'])['message'] == 'Bot queue\n\nMattermost API queued delivery' for r in posts)
+    assert any(json.loads(r['body'])['message'] == '**Bot queue**\n\nMattermost API queued delivery' for r in posts)
     print('PASS: Mattermost webhook compatibility, bot channel and direct-to-user/bot delivery, token masking, permissions/errors and queued bot sends', flush=True)
 
     # Authenticated proxy forwarding, SMTP CONNECT, redaction and failure without direct fallback.

@@ -4,14 +4,6 @@ use crate::*;
 pub const TITLE_SQL:&str="COALESCE(CASE WHEN jsonb_typeof(e.payload->'title')='string' AND e.payload->>'title' ~ '[^[:space:]]' THEN e.payload->>'title' END,CASE WHEN jsonb_typeof(e.payload->'alertname')='string' AND e.payload->>'alertname' ~ '[^[:space:]]' THEN e.payload->>'alertname' END,'')";
 
 pub struct Rendered {pub text:String,pub html:bool}
-pub fn validate(kind:&str,cfg:&Value)->Result<()> {
- if !matches!(kind,"telegram"|"mattermost"){return Ok(());}
- for (field,allowed) in [("message_mode",&["title_and_message","message_only"][..]),("text_format",&["original","portable"][..])] {
-  if let Some(value)=cfg.get(field){if !value.as_str().is_some_and(|s|allowed.contains(&s)){return Err(anyhow!("Invalid {field}"));}}
- }
- Ok(())
-}
-
 /// Missing/blank titles never inherit the history's "Notification" fallback.
 pub fn event_title(payload:&Value)->&str {
  payload.get("title").and_then(Value::as_str).filter(|s|!s.trim().is_empty())
@@ -100,10 +92,10 @@ fn formatted(kind:&str,text:&str,bold_title:bool)->String {
   if bold{out.push_str(if kind=="telegram"{"</b>"}else{"**"});}
  }out
 }
-pub fn render(kind:&str,cfg:&Value,title:&str,body:&str)->Rendered {
+pub fn render(kind:&str,_cfg:&Value,title:&str,body:&str)->Rendered {
  let supported=matches!(kind,"telegram"|"mattermost");
- let title=if title.trim().is_empty()||(supported&&cfg["message_mode"]=="message_only"){""}else{title};
- let rich=supported&&cfg["text_format"]=="portable";
+ let title=if title.trim().is_empty(){""}else{title};
+ let rich=supported;
  let title=if rich&&!title.is_empty(){formatted(kind,title,true)}else{title.to_owned()};
  let body=if rich{formatted(kind,body,false)}else{body.to_owned()};
  let text=if title.is_empty(){body}else if body.is_empty(){title}else{format!("{title}\n\n{body}")};
@@ -117,13 +109,13 @@ mod tests {
   for payload in [json!({"message":"Body"}),json!({"title":"","message":"Body"}),json!({"title":"  ","message":"Body"})]{
    assert_eq!(render("telegram",&json!({}),event_title(&payload),"Body").text,"Body");
   }
-  assert_eq!(render("telegram",&json!({}),"Title","Body").text,"Title\n\nBody");
-  for kind in ["telegram","mattermost"]{assert_eq!(render(kind,&json!({"message_mode":"message_only"}),"Ignored","Body").text,"Body");}
+  assert_eq!(render("telegram",&json!({}),"Title","Body").text,"<b>Title</b>\n\nBody");
+  for kind in ["telegram","mattermost"]{assert_eq!(render(kind,&json!({"message_mode":"message_only"}),"Title","Body").text,if kind=="telegram"{"<b>Title</b>\n\nBody"}else{"**Title**\n\nBody"});}
   let payload=json!({"title":"Title"});assert_eq!(event_message(&payload),"");
-  assert_eq!(render("mattermost",&json!({}),event_title(&payload),event_message(&payload)).text,"Title");
+  assert_eq!(render("mattermost",&json!({}),event_title(&payload),event_message(&payload)).text,"**Title**");
  }
  #[test]fn portable_links_and_unsafe_destinations(){
-  let cfg=json!({"message_mode":"message_only","text_format":"portable"});
+  let cfg=json!({});
   let text="Tasks:\n[TASK-123](https://tickets.example.org/project/Task/TASK-123?a=1&b=2)";
   assert_eq!(render("telegram",&cfg,"",text).text,"Tasks:\n<a href=\"https://tickets.example.org/project/Task/TASK-123?a=1&amp;b=2\">TASK-123</a>");
   assert_eq!(render("mattermost",&cfg,"",text).text,"Tasks:\n[TASK\\-123](https://tickets.example.org/project/Task/TASK-123?a=1&b=2)");
@@ -133,15 +125,13 @@ mod tests {
   assert!(!render("telegram",&cfg,"",r"\[literal](https://example.org)").text.contains("<a "));
  }
  #[test]fn portable_bold_and_literal_user_text(){
-  let cfg=json!({"message_mode":"message_only","text_format":"portable"});
+  let cfg=json!({});
   let input="✅ **Passed** <b>unsafe</b> & \"quote\"";
-  let telegram=render("telegram",&cfg,"Hidden",input);
+  let telegram=render("telegram",&cfg,"",input);
   assert!(telegram.html);assert_eq!(telegram.text,"✅ <b>Passed</b> &lt;b&gt;unsafe&lt;/b&gt; &amp; &quot;quote&quot;");
-  assert_eq!(render("mattermost",&cfg,"Hidden",input).text,"✅ **Passed** &lt;b&gt;unsafe&lt;/b&gt; &amp; \"quote\"");
+  assert_eq!(render("mattermost",&cfg,"",input).text,"✅ **Passed** &lt;b&gt;unsafe&lt;/b&gt; &amp; \"quote\"");
   assert_eq!(render("telegram",&cfg,"","unmatched **bold").text,"unmatched **bold");
   assert_eq!(render("telegram",&cfg,"",r"\**literal**").text,"**literal**");
   assert_eq!(render("telegram",&json!({"text_format":"portable"}),"<Title>","Body").text,"<b>&lt;Title&gt;</b>\n\nBody");
-  assert!(validate("telegram",&json!({"message_mode":"unknown"})).is_err());
-  assert!(validate("mattermost",&json!({"text_format":true})).is_err());
  }
 }
