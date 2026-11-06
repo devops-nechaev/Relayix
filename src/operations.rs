@@ -12,10 +12,14 @@ pub async fn events(State(s):State<AppState>,h:HeaderMap,Query(q):Query<EventQue
  let condition=" FROM events e JOIN routes r ON r.id=e.route_id WHERE ($1::uuid IS NULL OR e.route_id=$1) AND ($2::text IS NULL OR COALESCE(e.routing->>'reason','legacy')=$2) AND ($3::text IS NULL OR e.title ILIKE $3 OR e.message ILIKE $3 OR r.name ILIKE $3)";
  let mut count=sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT COUNT(*)");count.push(condition);
  let (total,):(i64,)=count.build_query_as().bind(q.route_id).bind(q.reason.as_deref().filter(|v|!v.is_empty())).bind(&search).fetch_one(&s.db).await.map_err(db_error)?;
- let mut rows=sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT jsonb_build_object('id',e.id,'route_id',e.route_id,'route_name',r.name,'title',e.title,'message',e.message,'priority',e.priority,'tags',e.tags,'routing',e.routing,'created_at',e.created_at,'deliveries',(SELECT COUNT(*) FROM deliveries d WHERE d.event_id=e.id),'sent',(SELECT COUNT(*) FROM deliveries d WHERE d.event_id=e.id AND d.status='sent'))");
+ let mut rows=sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT jsonb_build_object('id',e.id,'route_id',e.route_id,'route_name',r.name,'title',e.title,'message',e.message,'priority',e.priority,'tags',e.tags,'routing',e.routing,'_source',e.payload,'created_at',e.created_at,'deliveries',(SELECT COUNT(*) FROM deliveries d WHERE d.event_id=e.id),'sent',(SELECT COUNT(*) FROM deliveries d WHERE d.event_id=e.id AND d.status='sent'))");
  rows.push(condition).push(order).push(" LIMIT $4 OFFSET $5");
  let items:Vec<(Value,)>=rows.build_query_as().bind(q.route_id).bind(q.reason.as_deref().filter(|v|!v.is_empty())).bind(search).bind(size).bind((page-1)*size).fetch_all(&s.db).await.map_err(db_error)?;
- Ok(Json(json!({"items":items.into_iter().map(|r|r.0).collect::<Vec<_>>(),"total":total,"page":page,"page_size":size})))
+ let items:Vec<Value>=items.into_iter().map(|(mut item,)|{
+  let payload=item.as_object_mut().unwrap().remove("_source").unwrap();
+  let title=message::event_title(&payload);item["has_title"]=json!(!title.is_empty());item
+ }).collect();
+ Ok(Json(json!({"items":items,"total":total,"page":page,"page_size":size})))
 }
 pub async fn attempts(State(s):State<AppState>,h:HeaderMap,Path(id):Path<Uuid>)->ApiResult<Value>{
  auth::authenticated(&h,&s).await?;
@@ -25,11 +29,11 @@ pub async fn attempts(State(s):State<AppState>,h:HeaderMap,Path(id):Path<Uuid>)-
  Ok(Json(json!({"delivery_id":id,"attempts":total,"status":status,"is_fallback":is_fallback,"items":items.into_iter().map(|r|r.0).collect::<Vec<_>>(),"history_limit":100,"can_retry":status=="failed"||(status=="queued"&&error.is_some())})))
 }
 
-async fn claim(s:&AppState)->Result<Option<(Uuid,String,String,i32,Uuid,i32)>> {
+async fn claim(s:&AppState)->Result<Option<(Uuid,i32,Uuid,i32,Value)>> {
  let mut tx=s.db.begin().await?;
- let row:Option<(Uuid,String,String,i32,Uuid,i32)>=sqlx::query_as(
-  "SELECT d.id,e.title,e.message,e.priority,d.channel_id,d.attempts+1 FROM deliveries d JOIN events e ON e.id=d.event_id WHERE (d.status='queued' AND d.next_attempt_at<=NOW()) OR (d.status='processing' AND d.locked_at<NOW()-INTERVAL '2 minutes') ORDER BY d.created_at FOR UPDATE OF d SKIP LOCKED LIMIT 1").fetch_optional(&mut *tx).await?;
- if let Some((id,_,_,_,_,number))=&row {
+ let row:Option<(Uuid,i32,Uuid,i32,Value)>=sqlx::query_as(
+  "SELECT d.id,e.priority,d.channel_id,d.attempts+1 AS number,e.payload FROM deliveries d JOIN events e ON e.id=d.event_id WHERE (d.status='queued' AND d.next_attempt_at<=NOW()) OR (d.status='processing' AND d.locked_at<NOW()-INTERVAL '2 minutes') ORDER BY d.created_at FOR UPDATE OF d SKIP LOCKED LIMIT 1").fetch_optional(&mut *tx).await?;
+ if let Some((id,_,_,number,_))=&row {
   sqlx::query("UPDATE delivery_attempts SET status='interrupted',finished_at=NOW(),error='Worker lease expired; outcome unknown' WHERE delivery_id=$1 AND status='processing'").bind(id).execute(&mut *tx).await?;
   sqlx::query("UPDATE deliveries SET status='processing',locked_at=NOW(),attempts=attempts+1,cycle_attempts=cycle_attempts+1 WHERE id=$1").bind(id).execute(&mut *tx).await?;
   sqlx::query("INSERT INTO delivery_attempts(delivery_id,number) VALUES($1,$2)").bind(id).bind(number).execute(&mut *tx).await?;
@@ -56,9 +60,11 @@ async fn finish(s:&AppState,id:Uuid,number:i32,result:Result<()>)->Result<()> {
 pub async fn worker(s:AppState) {
  loop {
   match claim(&s).await {
-   Ok(Some((id,title,message,priority,cid,number)))=>{
+   Ok(Some((id,priority,cid,number,payload)))=>{
+    let title=message::event_title(&payload);
+    let message=message::event_message(&payload);
     let channel=sqlx::query_as::<_,Channel>("SELECT * FROM channels WHERE id=$1").bind(cid).fetch_optional(&s.db).await;
-    let result=match channel {Ok(Some(c)) if c.enabled=>send(&s.client,&c,&title,&message,priority,s.allow_http,id).await,Ok(Some(_))=>Err(anyhow!("Channel disabled")),Ok(None)=>Err(anyhow!("Channel removed")),Err(_)=>Err(anyhow!("Channel lookup failed"))};
+    let result=match channel {Ok(Some(c)) if c.enabled=>send(&s.client,&c,title,message,priority,s.allow_http,id).await,Ok(Some(_))=>Err(anyhow!("Channel disabled")),Ok(None)=>Err(anyhow!("Channel removed")),Err(_)=>Err(anyhow!("Channel lookup failed"))};
     if let Err(e)=finish(&s,id,number,result).await {tracing::error!(%e,%id,"worker result update failed");tokio::time::sleep(Duration::from_secs(3)).await;}
    }
    Ok(None)=>tokio::time::sleep(Duration::from_millis(800)).await,

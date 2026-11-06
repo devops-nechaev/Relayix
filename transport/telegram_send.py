@@ -8,6 +8,8 @@ import uuid
 from urllib.parse import urlsplit
 from telethon import TelegramClient, connection, functions, types, errors
 from telethon.sessions import MemorySession
+from telethon.extensions.html import HTMLToTelegramParser
+from telethon.helpers import add_surrogate, del_surrogate
 from telethon_webproxy import ConnectionWebProxy
 from faketls import ConnectionTcpMTProxyFakeTLS, parse_secret
 
@@ -58,6 +60,16 @@ def destination(cfg):
     return types.InputPeerUser(chat, 0)
 
 
+def formatted_text(text):
+    # Use Telethon's UTF-16-aware parser without stripping the supplied message.
+    parser = HTMLToTelegramParser()
+    parser.feed(add_surrogate(text))
+    parser.close()
+    parser.entities.reverse()
+    parser.entities.sort(key=lambda entity: entity.offset)
+    return del_surrogate(parser.text), parser.entities
+
+
 async def deliver(data, factory=TelegramClient):
     cfg = data['config']
     client = factory(MemorySession(), int(cfg['api_id']), cfg['api_hash'],
@@ -69,7 +81,8 @@ async def deliver(data, factory=TelegramClient):
         topic = cfg.get('message_thread_id')
         reply = types.InputReplyToMessage(reply_to_msg_id=int(topic)) if topic else None
         random_id = int.from_bytes(uuid.UUID(data['delivery_id']).bytes[:8], 'big', signed=True)
-        await client(functions.messages.SendMessageRequest(peer=peer, message=data['text'],
+        text, entities = formatted_text(data['text']) if data.get('parse_mode') == 'HTML' else (data['text'], [])
+        await client(functions.messages.SendMessageRequest(peer=peer, message=text, entities=entities,
                      random_id=random_id, reply_to=reply, no_webpage=True))
     finally:
         await client.disconnect()

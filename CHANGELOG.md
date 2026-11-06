@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.2 Beta — 2026-11-06
+
+- Deliver the message without an automatic heading when the original title is omitted, empty or whitespace-only. History labels never become delivery headings; title-only events are not duplicated.
+- Add independent Message content and Text formatting settings for Telegram and Mattermost, including Message only, portable **bold** text and Markdown-style HTTP/HTTPS links. Preserve existing channel settings and original-text behavior by default.
+- Show View message for untitled rows in recent deliveries and incoming history; keep long bodies in a separate viewer.
+- Render portable formatting as escaped Telegram HTML for Bot API and UTF-16-aware MTProto entities, and escaped Mattermost Markdown for webhook, channel and direct-message delivery. Preserve message spacing and line breaks.
+
 ## 0.7.1 Beta — 2026-11-06
 
 - Update GitHub/GHCR links and deployment defaults to opsforge89 after the account rename.

@@ -1,9 +1,10 @@
 import React,{useEffect,useState} from 'react';
 import {CheckCircle2,XCircle,LoaderCircle,X} from 'lucide-react';
 import {DataTable,useTableSettings} from './tables.jsx';
+import {Banner} from './notifications.jsx';
 import {Dialog,PageHeading,Field,ErrorMessage} from './ui.jsx';
 
-export function IncomingView({api,routes,refresh,onDeliveries}) {
+export function IncomingView({api,routes,refresh,onDeliveries,onViewMessage}) {
  const [table]=useTableSettings('incoming');
  const [route,setRoute]=useState(''),[reason,setReason]=useState(''),[search,setSearch]=useState(''),[page,setPage]=useState(1);
  const [data,setData]=useState({items:[],total:0}),[busy,setBusy]=useState(false),[error,setError]=useState('');
@@ -12,12 +13,16 @@ export function IncomingView({api,routes,refresh,onDeliveries}) {
  const filter=(setter,value)=>{setter(value);setPage(1)};
  return <><PageHeading title="Incoming webhooks" description="Accepted events, including events that queued no deliveries."/><div className="history-filters"><Field label="Route"><select value={route} onChange={e=>filter(setRoute,e.target.value)}><option value="">All routes</option>{routes.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}</select></Field><Field label="Routing result"><select value={reason} onChange={e=>filter(setReason,e.target.value)}><option value="">All results</option>{['queued','priority_below_minimum','no_destinations','no_active_destinations','legacy'].map(r=><option key={r} value={r}>{r.replaceAll('_',' ')}</option>)}</select></Field><Field label="Search events"><input type="search" value={search} maxLength={250} onChange={e=>filter(setSearch,e.target.value)}/></Field></div><ErrorMessage error={error}/><section className="panel" aria-busy={busy}><DataTable id="incoming" label="Incoming webhooks" rows={data.items} busy={busy} serverSorted empty="No matching incoming events" columns={[
  {key:'created_at',label:'Time',type:'date',value:e=>e.created_at,render:e=>new Date(e.created_at).toLocaleString()},
- {key:'title',label:'Event',value:e=>e.title},
+ {key:'title',label:'Event',value:e=>e.title,render:e=><button className="link" onClick={()=>onViewMessage(e)}>{e.has_title?e.title:'View message'}</button>},
  {key:'route',label:'Route',value:e=>e.route_name},
  {key:'routing',label:'Routing',value:e=>e.routing?.reason||'legacy',render:e=>(e.routing?.reason||'legacy').replaceAll('_',' ')},
  {key:'deliveries',label:'Deliveries',type:'number',value:e=>e.deliveries,render:e=>`${e.sent} sent / ${e.deliveries} total`},
  {key:'details',label:'Details',render:e=><><details><summary>Event details</summary><p className="event-message">{e.message}</p><p>Priority: {e.priority} · Tags: {(Array.isArray(e.tags)?e.tags:[]).join(', ')||'None'}</p><code>{e.id}</code><pre>{e.routing?JSON.stringify(e.routing,null,2):'Routing diagnostics were not recorded for this older event.'}</pre></details>{e.deliveries>0&&<button className="small-btn" onClick={()=>onDeliveries(e)}>View deliveries</button>}</>},
  ]}/><div className="pagination"><span>{data.total} events</span><div className="actions"><button className="secondary compact" disabled={busy||page===1} onClick={()=>setPage(page-1)}>Previous</button><span>Page {page}</span><button className="secondary compact" disabled={busy||page*25>=data.total} onClick={()=>setPage(page+1)}>Next</button></div></div></section></>;
+}
+export function MessageDialog({value,onClose,onCopy}) {
+ const [notice,setNotice]=useState(''),[error,setError]=useState('');
+ return <Dialog title="Message" description={value.has_title?value.title:undefined} onClose={onClose}><pre className="message-view" aria-label="Full message">{value.message||''}</pre>{!value.message&&<p className="helptext">This event has no message body.</p>}<ErrorMessage error={error}/><Banner message={notice}/><button type="button" className="secondary" onClick={async()=>{try{await onCopy(value.message||'');setNotice('Message copied')}catch(e){setError(e.message)}}}>Copy message</button></Dialog>;
 }
 export function AttemptDialog({id,api,onClose,onRetry}) {
  const [data,setData]=useState(null),[error,setError]=useState(''),[busy,setBusy]=useState(false);

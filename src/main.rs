@@ -2,6 +2,7 @@ mod providers;
 mod proxy;
 mod telegram;
 mod mattermost;
+mod message;
 mod preferences;
 mod auth;
 mod alerts;
@@ -54,6 +55,7 @@ fn valid_config(kind: &str, cfg: &Value, allow_http: bool) -> Result<()> {
         if url.scheme() != "https" && !(allow_http && url.scheme() == "http") { return Err(anyhow!("HTTPS required (or explicitly enable ALLOW_INSECURE_HTTP)")); }
         if url.host_str().is_none() || !url.username().is_empty() || url.password().is_some() { return Err(anyhow!("Invalid URL")); }
     }
+    message::validate(kind,cfg)?;
     proxy::validate(kind,cfg)?;
     if kind == "mattermost" { mattermost::validate(cfg)?; }
     if kind == "telegram" { telegram_thread(cfg)?; }
@@ -168,7 +170,7 @@ async fn rotate_route(State(s):State<AppState>,h:HeaderMap,Path(id):Path<Uuid>)-
 }
 
 #[derive(Serialize,FromRow)]
-struct Delivery { id:Uuid,event_id:Uuid,route_id:Uuid,channel_id:Uuid,channel_name:String,channel_kind:String,route_name:String,title:String,tags:Value,route_tag:Option<String>,status:String,attempts:i32,is_fallback:bool,error:Option<String>,created_at:DateTime<Utc>,sent_at:Option<DateTime<Utc>> }
+struct Delivery { id:Uuid,event_id:Uuid,route_id:Uuid,channel_id:Uuid,channel_name:String,channel_kind:String,route_name:String,title:String,tags:Value,route_tag:Option<String>,status:String,attempts:i32,is_fallback:bool,error:Option<String>,created_at:DateTime<Utc>,sent_at:Option<DateTime<Utc>>,message:String,has_title:bool,#[serde(skip)] payload:Value }
 #[derive(Deserialize,Default)]
 struct DeliveryQuery {
  status:Option<String>,channel_id:Option<Uuid>,route_id:Option<Uuid>,event_id:Option<Uuid>,from:Option<DateTime<Utc>>,to:Option<DateTime<Utc>>,
@@ -187,11 +189,14 @@ async fn deliveries(State(s):State<AppState>,h:HeaderMap,Query(mut filter):Query
  let order=table::order("deliveries",&filter.sort)?;
  let page=filter.page.unwrap_or(1).clamp(1,1000000);let page_size=filter.page_size.unwrap_or(50).clamp(1,100);
  let search=filter.search.as_ref().filter(|v|!v.is_empty()).map(|v|format!("%{v}%"));
- let condition=" FROM deliveries d JOIN events e ON e.id=d.event_id JOIN channels c ON c.id=d.channel_id JOIN routes r ON r.id=e.route_id WHERE ($1::text IS NULL OR d.status=$1 OR ($1='retrying' AND d.status='queued' AND d.error IS NOT NULL)) AND ($2::uuid IS NULL OR d.channel_id=$2) AND ($3::uuid IS NULL OR e.route_id=$3) AND ($4::timestamptz IS NULL OR d.created_at>=$4) AND ($5::timestamptz IS NULL OR d.created_at<=$5) AND ($6::text IS NULL OR e.title ILIKE $6 OR c.name ILIKE $6 OR r.name ILIKE $6 OR COALESCE(d.error,'') ILIKE $6) AND ($7::text IS NULL OR e.tags @> jsonb_build_array($7::text) OR NULLIF(BTRIM(r.required_tag),'')=$7::text) AND ($8::uuid IS NULL OR e.id=$8)";
+ let condition=" FROM deliveries d JOIN events e ON e.id=d.event_id JOIN channels c ON c.id=d.channel_id JOIN routes r ON r.id=e.route_id WHERE ($1::text IS NULL OR d.status=$1 OR ($1='retrying' AND d.status='queued' AND d.error IS NOT NULL)) AND ($2::uuid IS NULL OR d.channel_id=$2) AND ($3::uuid IS NULL OR e.route_id=$3) AND ($4::timestamptz IS NULL OR d.created_at>=$4) AND ($5::timestamptz IS NULL OR d.created_at<=$5) AND ($6::text IS NULL OR e.title ILIKE $6 OR e.message ILIKE $6 OR c.name ILIKE $6 OR r.name ILIKE $6 OR COALESCE(d.error,'') ILIKE $6) AND ($7::text IS NULL OR e.tags @> jsonb_build_array($7::text) OR NULLIF(BTRIM(r.required_tag),'')=$7::text) AND ($8::uuid IS NULL OR e.id=$8)";
  let mut count_sql=sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT COUNT(*)");count_sql.push(condition);
  let (total,):(i64,)=count_sql.build_query_as::<(i64,)>().bind(&filter.status).bind(filter.channel_id).bind(filter.route_id).bind(filter.from).bind(filter.to).bind(&search).bind(filter.tag.as_deref().filter(|t|!t.is_empty())).bind(filter.event_id).fetch_one(&s.db).await.map_err(db_error)?;
- let mut rows_sql=sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT d.id,d.event_id,e.route_id,d.channel_id,c.name AS channel_name,c.kind AS channel_kind,r.name AS route_name,e.title,e.tags,NULLIF(BTRIM(r.required_tag),'') AS route_tag,d.status,d.attempts,d.is_fallback,d.error,d.created_at,d.sent_at");rows_sql.push(condition).push(order).push(" LIMIT $9 OFFSET $10");
- let items=rows_sql.build_query_as::<Delivery>().bind(&filter.status).bind(filter.channel_id).bind(filter.route_id).bind(filter.from).bind(filter.to).bind(&search).bind(filter.tag.as_deref().filter(|t|!t.is_empty())).bind(filter.event_id).bind(page_size).bind((page-1)*page_size).fetch_all(&s.db).await.map_err(db_error)?;
+ let mut rows_sql=sqlx::QueryBuilder::<sqlx::Postgres>::new("SELECT d.id,d.event_id,e.route_id,d.channel_id,c.name AS channel_name,c.kind AS channel_kind,r.name AS route_name,e.title,e.tags,NULLIF(BTRIM(r.required_tag),'') AS route_tag,d.status,d.attempts,d.is_fallback,d.error,d.created_at,d.sent_at,e.message,FALSE AS has_title,e.payload");rows_sql.push(condition).push(order).push(" LIMIT $9 OFFSET $10");
+ let mut items=rows_sql.build_query_as::<Delivery>().bind(&filter.status).bind(filter.channel_id).bind(filter.route_id).bind(filter.from).bind(filter.to).bind(&search).bind(filter.tag.as_deref().filter(|t|!t.is_empty())).bind(filter.event_id).bind(page_size).bind((page-1)*page_size).fetch_all(&s.db).await.map_err(db_error)?;
+ for row in &mut items {
+  let title=message::event_title(&row.payload);row.has_title=!title.is_empty();
+ }
  Ok(Json(json!({"items":items,"total":total,"page":page,"page_size":page_size})))
 }
 async fn retry(State(s):State<AppState>,h:HeaderMap,Path(id):Path<Uuid>)->ApiResult<Value>{
@@ -207,6 +212,7 @@ fn telegram_thread(cfg:&Value)->Result<Option<i64>> {
 }
 fn telegram_payload(cfg:&Value,text:&str)->Result<Value> {
  let mut payload=json!({"chat_id":cfg["chat_id"],"text":text});
+ if cfg["text_format"]=="portable" {payload["parse_mode"]=json!("HTML");}
  if let Some(id)=telegram_thread(cfg)? {payload["message_thread_id"]=json!(id);}
  Ok(payload)
 }
@@ -220,8 +226,9 @@ async fn test_channel(State(s):State<AppState>,h:HeaderMap,Path(id):Path<Uuid>)-
 async fn send(client:&reqwest::Client,c:&Channel,title:&str,message:&str,priority:i32,allow_http:bool,delivery_id:Uuid)->Result<()> {
  let cfg=&c.config;
  valid_config(&c.kind,cfg,allow_http)?;
- let text=format!("{title}\n\n{message}");
- if c.kind=="telegram"&&matches!(proxy::mode(cfg),"mtproto"|"webproxy"){return telegram::send(cfg,&text,delivery_id).await;}
+ let rendered=message::render(&c.kind,cfg,title,message);
+ let text=rendered.text;
+ if c.kind=="telegram"&&matches!(proxy::mode(cfg),"mtproto"|"webproxy"){return telegram::send(cfg,&text,delivery_id,rendered.html).await;}
  let client=proxy::client(client,cfg)?;
  if c.kind == "mattermost" && mattermost::is_bot(cfg) {return mattermost::send(&client,cfg,&text).await;}
  if c.kind == "smtp" { return providers::send_smtp(cfg,title,message).await; }

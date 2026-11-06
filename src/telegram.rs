@@ -38,11 +38,11 @@ pub fn validate(cfg:&Value)->Result<()> {
  if let Some(hash)=cfg["chat_access_hash"].as_str().filter(|s|!s.is_empty()) {if hash.parse::<i64>().is_err(){return Err(anyhow!("Chat access hash must be a signed integer"));}}
  Ok(())
 }
-pub async fn transport(cfg:&Value,text:&str,delivery_id:Uuid,diagnose:bool)->Result<Value> {
+pub async fn transport(cfg:&Value,text:&str,delivery_id:Uuid,diagnose:bool,html:bool)->Result<Value> {
  validate(cfg)?;
  let effective=application_config(cfg);let cfg=&effective;
  let mut child=Command::new("python3").arg("/app/transport/telegram_send.py").stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null()).kill_on_drop(true).spawn().map_err(|_|anyhow!("Telegram transport could not start"))?;
- let payload=serde_json::to_vec(&json!({"config":cfg,"text":text,"delivery_id":delivery_id,"action":if diagnose{"diagnose"}else{"send"}}))?;
+ let payload=serde_json::to_vec(&json!({"config":cfg,"text":text,"delivery_id":delivery_id,"action":if diagnose{"diagnose"}else{"send"},"parse_mode":if html{Some("HTML")}else{None}}))?;
  let mut stdin=child.stdin.take().unwrap();stdin.write_all(&payload).await.map_err(|_|anyhow!("Telegram transport input failed"))?;drop(stdin);
  let output=tokio::time::timeout(Duration::from_secs(50),child.wait_with_output()).await.map_err(|_|anyhow!("Telegram proxy timed out; check proxy reachability and credentials"))?.map_err(|_|anyhow!("Telegram transport failed"))?;
  let data:Value=serde_json::from_slice(&output.stdout).unwrap_or(Value::Null);
@@ -51,7 +51,7 @@ pub async fn transport(cfg:&Value,text:&str,delivery_id:Uuid,diagnose:bool)->Res
  Err(anyhow!(message))
 }
 
-pub async fn send(cfg:&Value,text:&str,delivery_id:Uuid)->Result<()> {transport(cfg,text,delivery_id,false).await.map(|_|())}
+pub async fn send(cfg:&Value,text:&str,delivery_id:Uuid,html:bool)->Result<()> {transport(cfg,text,delivery_id,false,html).await.map(|_|())}
 
 #[cfg(test)]
 mod tests {
