@@ -736,9 +736,11 @@ with sync_playwright() as p:
     page.unroute('**/api/channels')
     page.set_viewport_size({'width': 1680, 'height': 1100})
     print('PASS: twenty compact channels, destination/topic/connection summaries, mobile layout and no credential placeholders')
-    page.get_by_role('button',name='Refresh data',exact=True).click()
-    expect(page.locator('.channel-card').first).to_be_visible()
-    expect(page.locator('.channel-card').get_by_role('button',name='Diagnose',exact=True)).to_have_count(page.locator('.channel-card').count())
+    with page.expect_response(lambda response: response.url.endswith('/api/channels') and response.request.method=='GET') as refreshed_channels:
+        page.get_by_role('button',name='Refresh data',exact=True).click()
+    expected_channels=len(refreshed_channels.value.json())
+    expect(page.locator('.channel-card')).to_have_count(expected_channels)
+    expect(page.locator('.channel-card').get_by_role('button',name='Diagnose',exact=True)).to_have_count(expected_channels)
     # Editable examples are never installed automatically; preview is read-only.
     page.get_by_role('button', name='Templates', exact=True).click()
     expect(page.get_by_role('heading', name='Templates', exact=True)).to_be_visible()
