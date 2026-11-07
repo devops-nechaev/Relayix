@@ -60,7 +60,7 @@ def main():
     api = Client(TOKEN)
     for _ in range(90):
         try:
-            if api.ok('/healthz')['version'] == '0.8.0':
+            if api.ok('/healthz')['version'] == '0.8.1':
                 break
         except (URLError, AssertionError):
             time.sleep(1)

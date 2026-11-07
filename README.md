@@ -59,7 +59,7 @@ The minimum payload is `{"message":"..."}`. Add an optional `title` and/or `tags
 
 ## Update
 
-Current published image: `ghcr.io/opsforge89/relayix:0.8.0`.
+Current published image: `ghcr.io/opsforge89/relayix:0.8.1`.
 
 Change the app image tag in `compose.yaml`, then run:
 

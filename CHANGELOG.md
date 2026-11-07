@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.1 Beta — 2026-11-07
+
+- Reorder table columns with drag-and-drop or arrow buttons and save column order to the user account.
+- Use the shared Overview/Technical event drawer for delivery details.
+- Unify View all buttons, place Columns and View all in one toolbar, and share channel actions between Dashboard and Channels.
+- Group template fields by category with descriptions, examples, search, card/list layouts and insertion at the cursor. All combines suggested fields with detected JSON fields without duplicates.
+- Add editable backup report and scheduled job examples, for five templates in total. Keep monitoring and personal delivery alerts deferred.
+
 ## 0.8.0 Beta — 2026-11-07
 
 - Add user-created message templates with optional route assignment, fake-data examples, read-only preview, literal variables, failure-only links and immutable per-event rendering history.

@@ -11,8 +11,8 @@ impl Default for DeliveryFilters {
 }
 #[derive(Clone,Debug,Serialize,Deserialize,PartialEq)]
 #[serde(default,deny_unknown_fields)]
-pub struct TableSettings {pub hidden_columns:Vec<String>,pub sort_by:String,pub sort_dir:String}
-impl Default for TableSettings {fn default()->Self{Self{hidden_columns:vec![],sort_by:"created_at".into(),sort_dir:"desc".into()}}}
+pub struct TableSettings {pub hidden_columns:Vec<String>,#[serde(skip_serializing_if="Vec::is_empty")] pub column_order:Vec<String>,pub sort_by:String,pub sort_dir:String}
+impl Default for TableSettings {fn default()->Self{Self{hidden_columns:vec![],column_order:vec![],sort_by:"created_at".into(),sort_dir:"desc".into()}}}
 #[derive(Clone,Debug,Serialize,Deserialize,PartialEq)]
 #[serde(default,deny_unknown_fields)]
 pub struct Preferences {
@@ -38,6 +38,7 @@ impl Preferences {
         for (id,settings) in &self.tables {
             let columns=table::columns(id).ok_or_else(||anyhow!("Unknown table settings"))?;
             if !matches!(settings.sort_dir.as_str(),"asc"|"desc")||!columns.contains(&settings.sort_by.as_str())||matches!(settings.sort_by.as_str(),"actions"|"details"){return Err(anyhow!("Invalid table sort"));}
+            if settings.column_order.len()>columns.len()||settings.column_order.iter().any(|key|!columns.contains(&key.as_str()))||settings.column_order.iter().collect::<std::collections::HashSet<_>>().len()!=settings.column_order.len(){return Err(anyhow!("Invalid column order"));}
             if settings.hidden_columns.len()>=columns.len()||settings.hidden_columns.iter().any(|key|!columns.contains(&key.as_str()))||settings.hidden_columns.iter().collect::<std::collections::HashSet<_>>().len()!=settings.hidden_columns.len(){return Err(anyhow!("Invalid hidden columns; keep at least one visible column"));}
         }
         if !matches!(self.theme.as_str(),"light"|"dark") {return Err(anyhow!("Theme must be light or dark"));}
@@ -73,6 +74,19 @@ pub async fn update(State(s):State<AppState>,h:HeaderMap,payload:std::result::Re
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn column_order_is_validated_and_round_trips() {
+        let mut prefs=Preferences::from_value(json!({"tables":{"incoming":{"column_order":["title","created_at"],"hidden_columns":["routing"]}}}));
+        assert!(prefs.validate().is_ok());
+        assert_eq!(Preferences::from_value(serde_json::to_value(&prefs).unwrap()),prefs);
+        for invalid in [vec!["title","title"],vec!["not_a_column"]] {
+            prefs.tables.get_mut("incoming").unwrap().column_order=invalid.into_iter().map(String::from).collect();
+            assert!(prefs.validate().is_err());
+        }
+        let legacy=Preferences::from_value(json!({"tables":{"incoming":{"sort_by":"title","sort_dir":"asc"}}}));
+        assert!(legacy.validate().is_ok());
+        assert!(legacy.tables["incoming"].column_order.is_empty());
+    }
     #[test]
     fn defaults_and_preference_limits() {
         let mut prefs=Preferences::from_value(json!({}));

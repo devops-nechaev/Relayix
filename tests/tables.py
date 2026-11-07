@@ -45,6 +45,14 @@ def verify(api,anonymous):
         assert anonymous.request('/api/auth/preferences',prefs,'PUT')[0]==401
         for table_settings in ({'unknown':{'hidden_columns':[],'sort_by':'created_at','sort_dir':'desc'}},{'deliveries':{'hidden_columns':['nonexistent'],'sort_by':'created_at','sort_dir':'desc'}},{'incoming':{'hidden_columns':['created_at','title','route','routing','deliveries','details'],'sort_by':'created_at','sort_dir':'desc'}},{'users':{'hidden_columns':[],'sort_by':'actions','sort_dir':'asc'}}):
             assert api.request('/api/auth/preferences',{**original,'tables':table_settings},'PUT')[0]==400
+        ordered=copy.deepcopy(prefs)
+        ordered['tables']['incoming']['column_order']=['title','created_at','details','route','routing','deliveries']
+        api.ok('/api/auth/preferences',ordered,'PUT')
+        assert api.ok('/api/auth/me')['preferences']['tables']['incoming']['column_order']==ordered['tables']['incoming']['column_order']
+        for invalid in (['title','title'],['unknown']):
+            invalid_prefs=copy.deepcopy(ordered)
+            invalid_prefs['tables']['incoming']['column_order']=invalid
+            assert api.request('/api/auth/preferences',invalid_prefs,'PUT')[0]==400
         print('PASS: global text/time sorting across pages, newest-first defaults, SQL sort allowlists, all-table account preferences and visibility validation',flush=True)
     finally:
         api.ok('/api/auth/preferences',original,'PUT')
