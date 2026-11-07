@@ -59,7 +59,7 @@ The minimum payload is `{"message":"..."}`. Add an optional `title` and/or `tags
 
 ## Update
 
-Current published image: `ghcr.io/opsforge89/relayix:0.8.0`.
+Current published image: `ghcr.io/opsforge89/relayix:0.8.1`.
 
 Change the app image tag in `compose.yaml`, then run:
 
@@ -72,9 +72,13 @@ Keep your `.env` and database volume. Migrations run automatically.
 
 ## Preview
 
-![Relayix dashboard — dark theme](docs/screenshots/relayix-dashboard-dark.png)
+Current interface with fictional demonstration data.
 
-![Relayix channels — light theme](docs/screenshots/relayix-channels-light.png)
+![Relayix 0.8.1 dashboard with compact channels, routes and delivery history — dark theme](docs/screenshots/relayix-dashboard-dark.png)
+
+![Relayix 0.8.1 channels and available integrations — light theme](docs/screenshots/relayix-channels-light.png)
+
+![Relayix 0.8.1 template editor with categorized fields and examples — light theme](docs/screenshots/relayix-template-editor-light.png)
 
 ## Documentation
 

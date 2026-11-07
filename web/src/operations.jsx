@@ -47,7 +47,7 @@ export function InlineDiagnostics({state,onDismiss}) {
  return <section className="inline-diagnostics" aria-label="Channel diagnostics" aria-busy={state.busy}><div className="diagnostics-heading"><strong>Diagnostics</strong><button type="button" className="ghost" onClick={onDismiss} aria-label="Dismiss diagnostics"><X size={14}/></button></div>{state.busy&&<p className="diagnostic-running" role="status"><LoaderCircle className="spin" size={17}/> Checking connection…</p>}<ErrorMessage error={state.error}/>{state.result&&<ul className="diagnostic-steps">{state.result.steps.filter(s=>s.name!=='permissions').map(s=><li key={s.name} className={`diagnostic-${s.status}`}>{s.status==='passed'?<CheckCircle2 size={19} aria-label="Passed"/>:s.status==='failed'?<XCircle size={19} aria-label="Failed"/>:<MinusCircle size={19} aria-label="Not verified"/>}<div><strong>{stageLabels[s.name]||s.name}</strong><p>{s.detail}</p></div></li>)}</ul>}</section>;
 }
 
-function EventDrawer({id,api,onClose,onDeliveries,onAttempts}) {
+export function EventDrawer({id,api,onClose,onDeliveries,onAttempts}) {
  const [event,setEvent]=useState(null),[tab,setTab]=useState('overview'),[error,setError]=useState(''),[notice,setNotice]=useState(''),[revision,setRevision]=useState(0);
  useEffect(()=>{let active=true;setError('');api(`/api/events/${id}`).then(value=>{if(active)setEvent(value)}).catch(e=>{if(active)setError(e.message)});return()=>{active=false}},[id,api,revision]);
  const copy=async value=>{try{await navigator.clipboard.writeText(typeof value==='string'?value:JSON.stringify(value,null,2));setNotice('Copied')}catch{setError('Copy failed. Select and copy the text manually.')}};
